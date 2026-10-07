@@ -4,6 +4,37 @@ bin-release/
 [Oo]bj/
 [Bb]in/
 
+# JavaScript / TypeScript
+node_modules/
+.next/
+dist/
+coverage/
+.expo/
+.expo-shared/
+
+# Local configuration and secrets
+.env
+.env.*
+!.env.example
+
+# Native build artifacts
+android/.gradle/
+android/local.properties
+ios/Pods/
+
+# Editors and operating systems
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+.idea/
+.DS_Store
+Thumbs.db
+*.log
+*.pem
+*.key
+*.p12
+*.jks
+
 # Other files and folders
 .settings/
 
@@ -12,6 +43,8 @@ bin-release/
 *.air
 *.ipa
 *.apk
+/skill.agent
+/.agent
 
 # Project files, i.e. `.project`, `.actionScriptProperties` and `.flexProperties`
 # should NOT be excluded as they contain compiler settings and other important

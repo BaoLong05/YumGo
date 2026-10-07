@@ -1,0 +1,12 @@
+node_modules
+**/node_modules
+**/bin
+**/obj
+**/.next
+**/.expo
+.git
+.env
+.env.*
+!.env.example
+coverage
+*.log

@@ -1,0 +1,14 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/YumGo.Api/YumGo.Api.csproj" />
+    <Project Path="src/YumGo.Application/YumGo.Application.csproj" />
+    <Project Path="src/YumGo.Domain/YumGo.Domain.csproj" />
+    <Project Path="src/YumGo.Infrastructure/YumGo.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/YumGo.Api.IntegrationTests/YumGo.Api.IntegrationTests.csproj" />
+    <Project Path="tests/YumGo.Application.Tests/YumGo.Application.Tests.csproj" />
+    <Project Path="tests/YumGo.Domain.Tests/YumGo.Domain.Tests.csproj" />
+    <Project Path="tests/YumGo.Infrastructure.Tests/YumGo.Infrastructure.Tests.csproj" />
+  </Folder>
+</Solution>
