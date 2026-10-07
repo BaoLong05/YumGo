@@ -1,8 +1,10 @@
+using YumGo.Domain.Common;
+
 namespace YumGo.Domain.Identity;
 
 public sealed class User
 {
-    private User(Guid id, Email email, PasswordHash passwordHash, UserStatus status)
+    private User(NanoId id, Email email, PasswordHash passwordHash, UserStatus status)
     {
         Id = id;
         Email = email;
@@ -10,7 +12,7 @@ public sealed class User
         Status = status;
     }
 
-    public Guid Id { get; private set; }
+    public NanoId Id { get; private set; }
 
     public Email Email { get; private set; }
 
@@ -23,7 +25,7 @@ public sealed class User
         ArgumentNullException.ThrowIfNull(email);
         ArgumentNullException.ThrowIfNull(passwordHash);
 
-        return new User(Guid.NewGuid(), email, passwordHash, UserStatus.Active);
+        return new User(NanoId.New(), email, passwordHash, UserStatus.Active);
     }
 
     public void Suspend() => Status = UserStatus.Suspended;
