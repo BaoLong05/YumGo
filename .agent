@@ -1,0 +1,2099 @@
+# AI Backend Engineering Agent Context — Food Delivery Platform (.NET)
+
+## 0. Project Goal
+
+Build a production-style food ordering and delivery platform for learning and portfolio purposes.
+
+The platform has:
+- Customer Web application
+- Customer Mobile application
+- Driver/Delivery mobile application
+- Admin/Operations Web application
+- .NET backend
+- Real-time order and driver-location tracking
+- Maps and route visualization
+- Restaurant/menu/order/payment/delivery workflows
+- Authentication, authorization, notifications, background jobs, caching, observability, testing, Docker and deployment
+
+The backend must be designed as a serious Junior-to-Mid-level portfolio project, not as a tutorial CRUD application.
+
+Primary engineering goal:
+- Apply the complete C#/.NET curriculum from Day 1 through Day 6.
+- Use Clean Architecture + DDD where justified.
+- Keep business rules inside the domain/application layers rather than controllers.
+- Prefer maintainable, testable, observable code over premature complexity.
+
+---
+
+# 1. Day 1 — C# / .NET Fundamentals
+
+## 1.1 Object-Oriented Programming
+
+Know and apply:
+- Class
+- Object
+- Fields
+- Properties
+- Methods
+- Encapsulation
+- Constructors
+- Access modifiers
+- `get`, `set`, `private set`, `init`
+- Entity behavior
+- Value types vs reference types
+- `struct`
+- Interface
+- Abstract class
+- Inheritance
+- Polymorphism
+
+Rules:
+- Prefer encapsulation over public mutable state.
+- Domain entities should protect their invariants through methods.
+- Do not expose setters merely for EF convenience when a domain method is more appropriate.
+
+Example:
+```csharp
+public sealed class Order
+{
+    public Guid Id { get; private set; }
+    public OrderStatus Status { get; private set; }
+
+    public void Confirm()
+    {
+        if (Status != OrderStatus.Pending)
+            throw new DomainException("Only pending orders can be confirmed.");
+
+        Status = OrderStatus.Confirmed;
+    }
+}
+```
+
+## 1.2 Generics
+
+Understand:
+- `T`
+- Generic classes
+- Generic methods
+- Generic interfaces
+- Generic constraints
+
+Use generics for reusable infrastructure/application abstractions without sacrificing type safety.
+
+## 1.3 Records
+
+Know:
+- `record`
+- `record struct`
+- Value-based equality
+- Immutability patterns
+
+Good candidates:
+- DTOs
+- Value Objects when appropriate
+- Small immutable messages/commands
+
+## 1.4 Nullable Reference Types
+
+Use nullable reference types deliberately.
+
+Rules:
+- Avoid unnecessary `!` null-forgiving operators.
+- Validate required input at boundaries.
+- Represent optional data explicitly.
+- Do not silently convert missing data into invalid defaults.
+
+---
+
+# 2. Day 2 — Collections, Delegates, LINQ and Query Thinking
+
+## 2.1 Collections
+
+Know when to use:
+- `List<T>` — ordered collection with index access.
+- `Dictionary<TKey,TValue>` — key/value lookup.
+- `HashSet<T>` — uniqueness and membership checks.
+- `IEnumerable<T>` — iteration abstraction.
+- `IQueryable<T>` — provider-backed query composition.
+
+## 2.2 LINQ
+
+Use and understand:
+- `Where`
+- `Select`
+- `SelectMany`
+- `OrderBy`
+- `ThenBy`
+- `GroupBy`
+- `Join`
+- `Any`
+- `All`
+- `Contains`
+- `First`
+- `FirstOrDefault`
+- `Single`
+- `SingleOrDefault`
+- `Count`
+- `Sum`
+- `Min`
+- `Max`
+- `Average`
+- `ToList`
+- `ToDictionary`
+
+Understand deferred execution.
+
+Avoid materializing data too early:
+```csharp
+var users = db.Users
+    .Where(x => x.IsActive)
+    .Select(x => new UserDto(...))
+    .ToListAsync();
+```
+
+Do not do:
+```csharp
+var users = db.Users.ToList();
+var active = users.Where(...);
+```
+when the database can perform the filtering.
+
+## 2.3 Lambda Expressions
+
+Understand lambdas as executable expressions used by:
+- LINQ
+- Delegates
+- callbacks
+- configuration
+- predicates
+
+## 2.4 Func / Action / Predicate
+
+Know:
+- `Func<T,...>` returns a value.
+- `Action<T,...>` performs an action.
+- `Predicate<T>` represents a boolean condition.
+
+## 2.5 Expression Trees
+
+Understand that `Expression<Func<T,bool>>` can represent a query expression that an ORM such as EF Core may translate to SQL.
+
+---
+
+# 3. Day 3 — Async, Exceptions, Resource Management and Background Work
+
+## 3.1 Task / async / await
+
+Understand asynchronous execution from first principles.
+
+Use async APIs for I/O:
+- Database
+- HTTP
+- Redis
+- File storage
+- External APIs
+
+Prefer:
+```csharp
+public async Task<OrderDto> GetAsync(Guid id, CancellationToken ct)
+{
+    ...
+}
+```
+
+Avoid blocking:
+```csharp
+.Result
+.Wait()
+```
+
+Avoid unnecessary `Task.Run` for ordinary ASP.NET Core I/O.
+
+## 3.2 Task.WhenAll
+
+Use for independent asynchronous operations:
+```csharp
+var results = await Task.WhenAll(
+    GetMenuAsync(ct),
+    GetRestaurantAsync(ct),
+    GetPromotionsAsync(ct));
+```
+
+Do not use parallel execution when operations depend on one another or share unsafe mutable state.
+
+## 3.3 CancellationToken
+
+Every meaningful application/infrastructure async operation should support cancellation where appropriate.
+
+Pass the token through:
+```csharp
+await repository.GetAsync(id, cancellationToken);
+```
+
+ASP.NET Core request cancellation should propagate to database and external calls when safe.
+
+## 3.4 Exceptions
+
+Know:
+- Built-in exceptions
+- Custom exceptions
+- Exception propagation
+- Exception handling
+- Global exception middleware
+
+Do not use exceptions as ordinary business branching when a normal result is clearer.
+
+Domain exceptions should represent violated business invariants.
+
+## 3.5 IDisposable / using
+
+Understand deterministic resource disposal.
+
+Know:
+- `IDisposable`
+- `using`
+- `using var`
+- `IAsyncDisposable`
+- `await using`
+
+## 3.6 BackgroundService
+
+Use `BackgroundService` for controlled background processing.
+
+For serious workloads, prefer a durable queue/message broker architecture rather than an in-memory queue that loses jobs on restart.
+
+Examples:
+- Send notification
+- Process order events
+- Retry external integrations
+- Cleanup expired records
+
+---
+
+# 4. Day 4 — Advanced C# and Engineering Fundamentals
+
+## 4.1 Delegates
+
+Understand delegate types and use cases:
+- callbacks
+- strategies
+- events
+- dependency injection abstractions
+
+## 4.2 Events
+
+Understand publisher/subscriber behavior.
+
+Useful for in-process domain/application events, but do not confuse in-process events with durable distributed messaging.
+
+## 4.3 Extension Methods
+
+Use extension methods for readable reusable behavior without modifying the original type.
+
+Avoid hiding important business logic inside excessive extension methods.
+
+## 4.4 Dependency Injection
+
+Use constructor injection by default.
+
+Example:
+```csharp
+public sealed class OrderService(IOrderRepository repository)
+{
+}
+```
+
+Understand lifetimes:
+- Transient
+- Scoped
+- Singleton
+
+Important rule:
+- `DbContext` is normally Scoped.
+- Do not inject a Scoped dependency into a Singleton unless the lifetime boundary is intentionally handled.
+
+## 4.5 SOLID
+
+Apply:
+- Single Responsibility Principle
+- Open/Closed Principle
+- Liskov Substitution Principle
+- Interface Segregation Principle
+- Dependency Inversion Principle
+
+Do not apply SOLID mechanically. Prefer simple designs and introduce abstractions where they reduce coupling or protect business boundaries.
+
+## 4.6 Reflection
+
+Understand reflection for:
+- runtime type inspection
+- framework infrastructure
+- metadata
+- dependency registration scenarios
+
+Do not use reflection for ordinary business logic when normal strongly typed code is clearer.
+
+## 4.7 Attributes
+
+Understand attributes and metadata.
+
+Examples:
+- Validation attributes
+- ASP.NET Core attributes
+- Serialization metadata
+- Custom domain-independent metadata
+
+## 4.8 IEnumerable / IEnumerator / yield
+
+Understand iteration mechanics and lazy iteration.
+
+Know the difference between:
+- Returning a collection
+- Returning `IEnumerable<T>`
+- `yield return`
+- Materialized results
+
+## 4.9 Modern C#
+
+Use modern C# features when they improve readability:
+- Primary constructors
+- Records
+- Pattern matching
+- Switch expressions
+- Nullable reference types
+- File-scoped namespaces
+- Collection expressions where appropriate
+- `required` members where useful
+- Expression-bodied members when readable
+
+Do not use modern syntax merely to make code shorter.
+
+## 4.10 Concurrency / Thread Safety
+
+Understand:
+- Race conditions
+- Shared mutable state
+- Locks
+- Thread-safe collections
+- Atomic operations
+- Immutability
+
+ASP.NET Core services should generally avoid shared mutable state.
+
+For counters, locks, caches and concurrent structures, choose a thread-safe design deliberately.
+
+---
+
+# 5. Day 5 — ASP.NET Core, Web API, EF Core and Production Backend Fundamentals
+
+## 5.1 ASP.NET Core
+
+Understand:
+- HTTP request lifecycle
+- Middleware pipeline
+- Controllers
+- Dependency injection
+- Configuration
+- Logging
+- Authentication
+- Authorization
+- Filters
+- Model binding
+- Validation
+
+Controller rule:
+- Controllers should be thin.
+- Controllers translate HTTP concerns into application commands/queries.
+- Business logic belongs in application/domain layers.
+
+## 5.2 REST / HTTP
+
+Know:
+- GET
+- POST
+- PUT
+- PATCH
+- DELETE
+- Status codes
+- Headers
+- Request body
+- Query string
+- Route parameters
+
+Important status codes:
+- `200 OK`
+- `201 Created`
+- `204 No Content`
+- `400 Bad Request`
+- `401 Unauthorized`
+- `403 Forbidden`
+- `404 Not Found`
+- `409 Conflict`
+- `422 Unprocessable Content`
+- `500 Internal Server Error`
+
+Use HTTP semantics consistently.
+
+## 5.3 EF Core
+
+Understand:
+- ORM
+- Entity
+- `DbContext`
+- `DbSet`
+- CRUD
+- LINQ translation
+- Change tracking
+- `AsNoTracking`
+- Migrations
+- Relationships
+- Foreign keys
+- Navigation properties
+- `Include`
+- Fluent API
+
+Remember:
+- EF Core is an ORM, not the database itself.
+- `DbContext` already has Unit-of-Work semantics.
+- A custom Unit-of-Work abstraction is optional and must be justified.
+
+## 5.4 IQueryable vs IEnumerable
+
+`IQueryable<T>` should normally remain queryable while composing a database query.
+
+`IEnumerable<T>` operates on materialized/in-memory data.
+
+Avoid accidental early materialization.
+
+## 5.5 Tracking / No Tracking
+
+Use tracking when modifying entities.
+
+Use `AsNoTracking()` for read-only queries when change tracking is unnecessary.
+
+## 5.6 Relationships
+
+Understand:
+- One-to-one
+- One-to-many
+- Many-to-many
+- FK
+- Navigation properties
+- Cascade behavior
+
+## 5.7 N+1
+
+Detect and prevent N+1 query patterns.
+
+Use:
+- Projection
+- Proper joins
+- `Include` where appropriate
+- Explicit query design
+
+Prefer DTO projection for read APIs when it avoids loading unnecessary entities.
+
+## 5.8 Dependency Injection and Lifetimes
+
+Default to constructor injection.
+
+Use:
+- Scoped for request/unit-of-work-oriented services
+- Singleton for stateless thread-safe application-wide infrastructure
+- Transient for lightweight stateless services when appropriate
+
+## 5.9 Middleware
+
+Know how to build:
+- Exception middleware
+- Correlation/request ID middleware
+- Logging middleware
+- Authentication pipeline
+
+Middleware should handle cross-cutting HTTP concerns, not domain business rules.
+
+## 5.10 Authentication
+
+Understand:
+- Authentication = who are you?
+- Authorization = what are you allowed to do?
+
+Use JWT access tokens for suitable API authentication scenarios.
+
+Understand:
+- Claims
+- Token expiration
+- Refresh tokens
+- Roles
+- Policies
+- `[Authorize]`
+- `[AllowAnonymous]`
+
+## 5.11 Password Security
+
+Never store plaintext passwords.
+
+Use a proven password hashing mechanism/library.
+
+Do not implement cryptographic password hashing manually.
+
+## 5.12 RBAC and Policy Authorization
+
+Use roles for broad access control.
+
+Use policies/permissions for fine-grained rules.
+
+Examples:
+- Customer
+- Driver
+- RestaurantStaff
+- RestaurantManager
+- Admin
+- Operations
+
+## 5.13 DTOs
+
+Do not bind request DTOs directly to persistence entities.
+
+Use separate models for:
+- Request DTO
+- Response DTO
+- Domain Entity
+- Persistence model where justified
+
+Reason:
+- Prevent over-posting
+- Protect invariants
+- Decouple API contracts from database structure
+
+## 5.14 Validation
+
+Use request validation for input shape and basic constraints.
+
+Examples:
+- Required
+- Length
+- Email format
+- Numeric ranges
+
+Business validation belongs in application/domain logic.
+
+Example:
+- `Quantity > 0` can be request validation.
+- `Restaurant must be open to accept an order` is a business rule.
+
+## 5.15 Exception Handling
+
+Use centralized exception handling.
+
+Map known exceptions to consistent HTTP responses.
+
+Never leak stack traces or internal infrastructure details to clients in production.
+
+## 5.16 Logging
+
+Use `ILogger<T>` and structured logging.
+
+Include useful context:
+- Request ID / Correlation ID
+- User ID where appropriate
+- Order ID
+- Restaurant ID
+- Driver ID
+- Operation name
+
+Never log:
+- Passwords
+- Access tokens
+- Refresh tokens
+- Sensitive personal data unnecessarily
+
+## 5.17 Configuration
+
+Use:
+- `appsettings.json`
+- Environment variables
+- Options pattern
+
+Secrets must not be committed to source control.
+
+Examples:
+- Database connection string
+- JWT configuration
+- Redis connection
+- Map provider key
+- Payment provider key
+- Object storage credentials
+
+## 5.18 Testing
+
+Use:
+- Unit tests
+- Integration tests
+- End-to-end tests where valuable
+
+Understand:
+- xUnit
+- AAA pattern
+- Test doubles/mocking
+- `WebApplicationFactory`
+- Test database
+- Testcontainers concept
+- Code coverage
+- CI testing
+
+Testing goal:
+- Protect business behavior and critical workflows.
+- 100% coverage is not the goal by itself.
+
+---
+
+# 6. Day 6 — Clean Architecture + DDD
+
+## 6.1 Architecture Layers
+
+Preferred structure:
+
+```text
+src/
+  FoodDelivery.Domain/
+  FoodDelivery.Application/
+  FoodDelivery.Infrastructure/
+  FoodDelivery.API/
+
+tests/
+  FoodDelivery.Domain.Tests/
+  FoodDelivery.Application.Tests/
+  FoodDelivery.IntegrationTests/
+```
+
+Responsibilities:
+
+### Domain
+- Entities
+- Value Objects
+- Aggregates
+- Domain Services
+- Domain Events
+- Business rules
+- Domain exceptions
+
+Must remain independent of infrastructure/framework concerns as much as practical.
+
+### Application
+- Commands
+- Queries
+- Use cases
+- DTOs
+- Application services
+- Repository/port abstractions
+- External service abstractions
+- Transaction orchestration
+
+### Infrastructure
+- EF Core
+- PostgreSQL
+- Redis
+- Message broker
+- Email/SMS/push integrations
+- Maps provider integration
+- Payment integration
+- File/object storage
+- Repository implementations
+
+### API / Presentation
+- Controllers/endpoints
+- Authentication configuration
+- Middleware
+- HTTP concerns
+- API documentation
+- Composition root / dependency registration
+
+Dependency direction:
+
+```text
+API ───────────────┐
+Infrastructure ────┼──> Application ───> Domain
+                   │
+                   └──> implements Application abstractions
+```
+
+The exact placement of repository interfaces can vary. Prefer Application ports for use-case-oriented persistence abstractions; Domain interfaces are appropriate when the abstraction is genuinely part of the domain model.
+
+## 6.2 Entity
+
+Entity has identity and lifecycle.
+
+Example:
+- Order
+- Restaurant
+- Customer
+- Driver
+- Delivery
+
+Entity invariants should be protected internally.
+
+## 6.3 Value Object
+
+Value Object is identified by value rather than identity.
+
+Examples:
+- Money
+- Address
+- GeoCoordinate
+- PhoneNumber
+- Email
+- OrderNumber
+
+Example:
+```csharp
+public sealed record GeoCoordinate(decimal Latitude, decimal Longitude);
+```
+
+Validate invariants at construction/factory boundaries.
+
+## 6.4 Aggregate / Aggregate Root
+
+An Aggregate is a consistency boundary.
+
+The Aggregate Root is the only public entry point for modifying the aggregate's internal state.
+
+Food-delivery examples:
+- `Order` aggregate containing order items.
+- `Restaurant` aggregate containing menu concepts where consistency requires it.
+
+Do not make every database table an aggregate.
+
+Keep aggregate boundaries small enough to avoid unnecessary transaction contention.
+
+## 6.5 Domain Service
+
+Use a Domain Service when a business rule:
+- Is domain-specific
+- Does not naturally belong to one entity/value object
+- Requires multiple domain concepts
+
+Do not create a Domain Service for every CRUD operation.
+
+## 6.6 Repository Pattern
+
+Repository abstracts persistence from business/application logic.
+
+Example:
+```csharp
+public interface IOrderRepository
+{
+    Task<Order?> GetByIdAsync(Guid id, CancellationToken ct);
+    Task AddAsync(Order order, CancellationToken ct);
+}
+```
+
+Infrastructure implements it with EF Core.
+
+Avoid generic repositories that merely duplicate every `DbSet` method without adding value.
+
+## 6.7 Unit of Work
+
+Understand Unit of Work as a transaction/change persistence boundary.
+
+EF Core `DbContext` already provides this behavior.
+
+Do not add `IUnitOfWork` solely because a tutorial says every project must have one.
+
+Add an abstraction only when it improves application-level orchestration or testing/design clarity.
+
+## 6.8 CQRS
+
+CQRS = Command Query Responsibility Segregation.
+
+Command:
+- Changes state.
+- Example: `PlaceOrderCommand`.
+
+Query:
+- Reads state.
+- Example: `GetOrderTrackingQuery`.
+
+CQRS does NOT automatically mean:
+- Microservices
+- Separate databases
+- Event sourcing
+
+Use CQRS when it makes the application model clearer.
+
+## 6.9 DTO Mapping
+
+Map explicitly between:
+- Request DTO
+- Command
+- Domain model
+- Entity
+- Response DTO
+
+Do not expose domain entities directly from public APIs.
+
+## 6.10 Business-first Thinking
+
+Analyze requirements in this order:
+1. Actors
+2. Use cases
+3. Business rules
+4. Entities
+5. Value Objects
+6. Aggregates
+7. Commands
+8. Queries
+9. Persistence needs
+10. External integrations
+11. API contracts
+
+Do not start by creating database tables blindly.
+
+---
+
+# 7. Food Delivery Domain Model
+
+Core bounded areas/modules:
+
+- Identity & Access
+- Customer
+- Restaurant
+- Menu
+- Cart
+- Order
+- Payment
+- Delivery
+- Driver
+- Location Tracking
+- Promotion
+- Notification
+- Rating/Review
+- Admin/Operations
+
+Suggested core entities:
+- User
+- CustomerProfile
+- DriverProfile
+- Restaurant
+- RestaurantBranch
+- Menu
+- MenuItem
+- Cart
+- CartItem
+- Order
+- OrderItem
+- Payment
+- Delivery
+- DeliveryAssignment
+- DriverLocation
+- Promotion
+- Review
+- Notification
+
+Potential value objects:
+- Money
+- Address
+- GeoCoordinate
+- PhoneNumber
+- Email
+- OrderNumber
+- DeliveryFee
+
+Important aggregate examples:
+- Order is responsible for its lifecycle and order items.
+- Delivery controls delivery assignment/status rules.
+- Restaurant controls business rules related to accepting orders and availability where appropriate.
+
+Order lifecycle example:
+```text
+Pending
+  -> Confirmed
+  -> Preparing
+  -> ReadyForPickup
+  -> PickedUp
+  -> Delivering
+  -> Delivered
+```
+
+Alternative failure/cancellation states:
+```text
+Pending -> Cancelled
+Confirmed -> Cancelled
+```
+
+Never allow arbitrary status mutation from controllers.
+
+---
+
+# 8. API / Communication Strategy
+
+Do NOT force one protocol to handle every workload.
+
+Use a hybrid API architecture.
+
+## 8.1 REST — Primary external business API
+
+Use REST for:
+- Authentication
+- Restaurants
+- Menus
+- Cart
+- Orders
+- Payments initiation/status
+- Customer profile
+- Admin CRUD/operations
+
+Why:
+- Excellent browser/mobile compatibility
+- Simple HTTP semantics
+- Easy debugging
+- Strong ASP.NET Core support
+- Easy OpenAPI/Swagger documentation
+- Suitable for most business CRUD/use-case APIs
+
+REST should remain the main API, not be eliminated just because other protocols exist.
+
+## 8.2 WebSocket — Real-time tracking
+
+Use WebSocket for:
+- Driver location updates to customers
+- Order status updates
+- Driver assignment changes
+- Restaurant order board updates
+- Operations dashboard live updates
+
+Reason:
+- Bidirectional persistent connection
+- Low latency
+- Server can push events immediately
+
+Do not send every GPS point to every client blindly. Use throttling, authorization and appropriate location frequency.
+
+## 8.3 gRPC — Internal service-to-service communication
+
+Use gRPC if/when the backend is split into independently deployable services.
+
+Good candidates:
+- Order service -> Pricing service
+- Delivery service -> Routing service
+- Notification service -> user/device service
+
+Why:
+- Strong contracts via protobuf
+- Efficient binary protocol
+- Streaming support
+- Good internal-service performance
+
+Do not introduce microservices only to use gRPC. A modular monolith can use REST + WebSocket first.
+
+## 8.4 GraphQL — Complex read aggregation
+
+Potentially use GraphQL for:
+- Mobile home screen aggregation
+- Admin dashboards with many related read models
+- Flexible restaurant/menu discovery
+
+Why:
+- Client selects exactly the fields it needs.
+- Reduces multiple read requests for highly variable screens.
+
+But GraphQL is NOT required for the first version. REST + optimized query endpoints may be simpler.
+
+## 8.5 SSE — One-way live feeds
+
+Use SSE when the client mainly needs server-to-client updates and does not need bidirectional messaging.
+
+Good candidates:
+- Admin live order feed
+- Operations monitoring
+- Long-running job progress
+
+For customer/driver interactive tracking, WebSocket is usually the stronger choice.
+
+## 8.6 Webhooks — External provider events
+
+Use webhooks for provider-to-platform callbacks:
+- Payment provider confirms payment
+- Map/third-party provider event where supported
+- External delivery/payment status callbacks
+
+Webhook endpoint requirements:
+- Signature verification
+- Idempotency
+- Replay protection where supported
+- Fast acknowledgement
+- Asynchronous processing
+- Durable event recording
+
+## 8.7 MQTT — High-frequency device/location telemetry
+
+Potentially use MQTT for driver-device location telemetry if the platform grows to high-frequency location traffic.
+
+Flow:
+```text
+Driver App
+   -> MQTT Broker
+      -> Location Consumer
+         -> Redis / Stream / Database
+            -> Tracking Gateway
+               -> WebSocket
+                  -> Customer App
+```
+
+Why:
+- Lightweight
+- Designed for device telemetry
+- Publish/subscribe model
+- Efficient for many connected clients
+
+However, do NOT add MQTT in V1 if the traffic is small. REST/WebSocket can be enough initially. Introduce MQTT when the system actually needs high-frequency telemetry at scale.
+
+---
+
+# 9. Recommended V1 Architecture
+
+Start as a Modular Monolith, not microservices.
+
+```text
+                    ┌─────────────────────┐
+                    │ Next.js Web         │
+                    │ Customer/Admin      │
+                    └──────────┬──────────┘
+                               │ REST / WS
+                    ┌──────────▼──────────┐
+                    │ React Native Apps   │
+                    │ Customer + Driver   │
+                    └──────────┬──────────┘
+                               │
+                        ┌──────▼──────┐
+                        │ API Gateway │
+                        │ / ASP.NET   │
+                        └──────┬──────┘
+                               │
+             ┌─────────────────┼─────────────────┐
+             │                 │                 │
+       Application         WebSocket          Webhooks
+       / Domain            Hub                Payments
+             │
+       Infrastructure
+             │
+    ┌────────┼────────┬────────────┐
+    │        │        │            │
+PostgreSQL Redis   Message      Object
+                    Broker       Storage
+```
+
+Recommended initial deployment:
+- One ASP.NET Core backend
+- PostgreSQL
+- Redis
+- Background worker
+- WebSocket/SignalR
+- Object storage
+- External map provider
+- External payment provider
+- Push notification provider
+
+Split into microservices only after module boundaries and scaling needs are understood.
+
+---
+
+# 10. Backend Technology Recommendation
+
+Primary backend:
+- C#
+- .NET / ASP.NET Core
+- EF Core
+- PostgreSQL
+- Redis
+- SignalR for WebSocket-style real-time communication
+- BackgroundService initially; durable queue/broker when needed
+- OpenAPI/Swagger
+- xUnit
+- Integration tests
+- Docker
+
+Optional later:
+- RabbitMQ / Kafka depending on actual event requirements
+- MQTT broker for high-volume driver telemetry
+- gRPC for internal service communication
+- OpenTelemetry for distributed tracing/metrics
+
+Use SignalR rather than manually implementing raw WebSocket protocol unless raw WebSocket behavior is specifically needed. SignalR provides connection management, groups and client abstractions while still supporting WebSocket transport.
+
+---
+
+# 11. Frontend Recommendation
+
+## Web
+
+Recommended:
+- Next.js
+- TypeScript
+- React
+- TanStack Query
+- Tailwind CSS or a consistent component system
+- MapLibre GL JS or a suitable map SDK
+- WebSocket/SignalR client
+
+Why Next.js:
+- React ecosystem
+- Routing
+- Server/client rendering options
+- Good production structure
+- TypeScript support
+- Easy portfolio deployment
+
+For an authenticated dashboard/application, do not overuse SSR. Use client-side data fetching where appropriate.
+
+## Mobile
+
+Recommended:
+- React Native + Expo for faster development, unless native/background-location requirements justify bare React Native/native modules.
+- TypeScript
+- TanStack Query
+- React Navigation
+- SignalR client
+- Native location APIs
+- Map SDK
+
+The mobile platform should be split logically into:
+- Customer app
+- Driver app
+
+They may share a monorepo and common packages but must have separate permission/security concerns.
+
+Driver app requirements are stricter because background location, battery use, GPS accuracy and connectivity are involved.
+
+---
+
+# 12. Real-Time Order Tracking Design
+
+Desired behavior:
+
+```text
+Driver GPS
+   ↓
+Driver Mobile App
+   ↓
+Location ingestion
+   ↓
+Redis / short-lived location state
+   ↓
+Delivery Tracking Service
+   ↓
+SignalR Hub
+   ↓
+Customer App/Web
+   ↓
+Live map marker
+```
+
+Order status:
+```text
+Restaurant confirms
+      ↓
+Order domain event
+      ↓
+Application handler
+      ↓
+Notification + SignalR event
+      ↓
+Customer sees status immediately
+```
+
+Location data should be treated differently from business state:
+- Current location can live in Redis for fast reads.
+- Durable location history should be stored only at a justified sampling frequency.
+- Do not write every GPS coordinate directly to PostgreSQL at high frequency.
+
+Security:
+- Customer may only subscribe to their own order tracking channel.
+- Driver may publish location only for an active assigned delivery.
+- Admin/operations may have broader authorized visibility.
+
+---
+
+# 13. Map Integration
+
+Map responsibilities:
+- Display restaurant locations
+- Display customer delivery address
+- Display driver current position
+- Calculate/display route
+- Estimate distance/time
+- Optionally geocode addresses
+
+Do not put map-provider logic directly in domain code.
+
+Use an abstraction such as:
+```csharp
+public interface IMapService
+{
+    Task<RouteResult> CalculateRouteAsync(
+        GeoCoordinate origin,
+        GeoCoordinate destination,
+        CancellationToken ct);
+}
+```
+
+Infrastructure implements the chosen provider.
+
+Never expose provider API secrets to the client unless the provider explicitly requires public client-side keys with restrictions.
+
+---
+
+# 14. Payment Design
+
+Payment must be treated as an external integration.
+
+Flow:
+```text
+Customer
+  -> Create Order
+  -> Payment Pending
+  -> Create Payment Intent
+  -> Provider
+  -> Customer completes payment
+  -> Provider webhook
+  -> Verify signature
+  -> Idempotent payment processing
+  -> Mark payment successful
+  -> Confirm order/payment state
+```
+
+Never trust a client-side "payment successful" flag.
+
+Use idempotency keys for payment/order operations where appropriate.
+
+---
+
+# 15. Redis Usage
+
+Good uses:
+- Current driver location
+- Short-lived order tracking state
+- Caching restaurant/menu reads
+- Rate limiting
+- OTP/temporary verification data where appropriate
+- Distributed locks only when truly necessary
+- Session/ephemeral state where justified
+
+Do not use Redis as the authoritative permanent database for orders/payments.
+
+---
+
+# 16. Background Processing
+
+Use background processing for:
+- Notifications
+- Emails/SMS
+- Payment reconciliation
+- Expired carts
+- Order timeout handling
+- Promotion processing
+- Location cleanup
+- Retryable external operations
+
+Prefer durable queues for jobs that must survive application restarts.
+
+Every job should consider:
+- Idempotency
+- Retry policy
+- Dead-letter handling
+- Logging
+- Correlation IDs
+
+---
+
+# 17. Security Rules
+
+Mandatory:
+- JWT authentication
+- Refresh-token strategy where appropriate
+- Role/policy authorization
+- Password hashing via trusted implementation
+- Input validation
+- Rate limiting on sensitive endpoints
+- CORS configuration
+- HTTPS
+- Secret management through environment/secret store
+- Webhook signature validation
+- Idempotency for critical operations
+- Avoid over-posting
+- Avoid leaking internal errors
+
+Never:
+- Store plaintext passwords
+- Store secrets in Git
+- Trust client role claims without validated authentication
+- Trust client payment success state
+- Allow arbitrary order status mutation
+- Allow a driver to update another driver's delivery
+
+---
+
+# 18. Observability
+
+Use structured logs and correlation IDs.
+
+Recommended later:
+- OpenTelemetry traces
+- Metrics
+- Error tracking
+- Request latency
+- Database query timing
+- Queue depth
+- WebSocket connection counts
+- Location ingestion rate
+- Order creation success/failure rate
+- Payment failure rate
+
+Important business metrics:
+- Orders per minute
+- Average preparation time
+- Average delivery time
+- Cancellation rate
+- Payment failure rate
+- Driver assignment latency
+
+---
+
+# 19. Testing Strategy
+
+Unit tests:
+- Domain rules
+- Order transitions
+- Pricing
+- Promotion rules
+- Delivery assignment rules
+
+Integration tests:
+- EF Core + PostgreSQL
+- Authentication
+- Order API
+- Payment webhook
+- Redis integration
+
+End-to-end tests:
+- Register/login
+- Browse restaurant
+- Add to cart
+- Place order
+- Pay
+- Restaurant accepts
+- Driver assigned
+- Driver updates location
+- Customer sees tracking
+- Delivery completed
+
+Critical business flows should have strong automated coverage.
+
+---
+
+# 20. API Design Principles
+
+Prefer use-case-oriented endpoints where appropriate instead of exposing database CRUD blindly.
+
+Examples:
+```text
+POST   /api/v1/auth/login
+POST   /api/v1/auth/refresh
+GET    /api/v1/restaurants
+GET    /api/v1/restaurants/{id}
+GET    /api/v1/restaurants/{id}/menu
+POST   /api/v1/cart/items
+PATCH  /api/v1/cart/items/{id}
+POST   /api/v1/orders
+GET    /api/v1/orders/{id}
+POST   /api/v1/orders/{id}/cancel
+POST   /api/v1/orders/{id}/payment
+GET    /api/v1/orders/{id}/tracking
+POST   /api/v1/deliveries/{id}/accept
+POST   /api/v1/deliveries/{id}/location
+POST   /api/v1/payments/webhook
+```
+
+Do not expose:
+```text
+PUT /orders/{id}
+```
+for arbitrary state changes if that allows clients to set internal fields such as status, payment state or assigned driver.
+
+Prefer explicit commands:
+```text
+POST /orders/{id}/cancel
+POST /orders/{id}/confirm
+POST /orders/{id}/assign-driver
+POST /deliveries/{id}/pickup
+POST /deliveries/{id}/complete
+```
+
+---
+
+# 21. Idempotency
+
+Critical operations should be safe against retries.
+
+Examples:
+- Create order
+- Payment initiation
+- Payment webhook
+- Driver acceptance
+- Delivery completion
+
+Use idempotency keys or unique business identifiers where appropriate.
+
+Example:
+```text
+Idempotency-Key: 7c0d...
+```
+
+A repeated request with the same key should not create duplicate orders/payments.
+
+---
+
+# 22. Pagination / Filtering / Sorting
+
+Collection APIs should support controlled pagination.
+
+Prefer cursor pagination for large/high-frequency datasets where appropriate.
+
+Examples:
+```text
+GET /restaurants?cursor=...&limit=20
+GET /orders?status=delivering&limit=20
+```
+
+Do not accept unlimited `pageSize` from clients.
+
+---
+
+# 23. Coding Standards for the AI
+
+When generating backend code:
+
+1. Use C# with nullable reference types enabled.
+2. Prefer async APIs and `CancellationToken` for I/O.
+3. Use constructor injection.
+4. Keep controllers/endpoints thin.
+5. Keep domain rules in Domain.
+6. Keep orchestration/use cases in Application.
+7. Keep EF Core/external providers in Infrastructure.
+8. Do not expose EF entities directly from API responses.
+9. Prefer explicit DTOs.
+10. Validate at boundaries and enforce invariants in the domain.
+11. Use structured logging.
+12. Do not swallow exceptions.
+13. Do not use `.Result` or `.Wait()` in ASP.NET Core request code.
+14. Avoid unnecessary abstractions.
+15. Avoid generic repository boilerplate without value.
+16. Avoid unnecessary Unit-of-Work wrappers around `DbContext`.
+17. Avoid premature microservices.
+18. Avoid premature CQRS complexity.
+19. Use database transactions when multiple state changes must be atomic.
+20. Design critical commands to be idempotent.
+21. Use projections for read-heavy endpoints when appropriate.
+22. Watch for N+1 queries.
+23. Never trust client-provided authorization/payment state.
+24. Never hard-code secrets.
+25. Write tests for important business behavior.
+
+---
+
+# 24. Preferred Project Development Order
+
+Build incrementally:
+
+Phase 1 — Foundation
+- Solution structure
+- Clean Architecture projects
+- PostgreSQL
+- EF Core
+- Migrations
+- Docker
+- Configuration
+- Logging
+
+Phase 2 — Identity
+- Register
+- Login
+- JWT
+- Refresh token
+- Roles/policies
+
+Phase 3 — Restaurant/Menu
+- Restaurant
+- Branch
+- Menu
+- Menu item
+- Search/filter
+
+Phase 4 — Cart
+- Cart
+- Cart items
+- Price calculation
+
+Phase 5 — Order
+- Create order
+- Order aggregate
+- Status transitions
+- Cancellation
+- Order history
+
+Phase 6 — Payment
+- Payment abstraction
+- Provider integration
+- Webhook
+- Idempotency
+
+Phase 7 — Delivery
+- Driver
+- Assignment
+- Delivery lifecycle
+- Location ingestion
+
+Phase 8 — Real-time
+- SignalR
+- Order status events
+- Driver tracking
+
+Phase 9 — Redis / Background Jobs
+- Cache
+- location state
+- queue
+- notifications
+- retries
+
+Phase 10 — Frontends
+- Next.js customer/admin web
+- React Native customer app
+- React Native driver app
+
+Phase 11 — Production Engineering
+- Tests
+- OpenTelemetry
+- Metrics
+- Docker Compose
+- CI/CD
+- Deployment
+- Security hardening
+
+---
+
+# 25. Definition of Done for the Portfolio Project
+
+The project is considered strong when the developer can explain:
+
+- Why Clean Architecture is used.
+- Why Domain rules are not placed in controllers.
+- Why Order is an Aggregate Root.
+- Which concepts are Entities vs Value Objects.
+- Why EF Core belongs in Infrastructure.
+- Why DTOs are separated from entities.
+- How JWT authentication works.
+- Authentication vs authorization.
+- Scoped vs Singleton vs Transient.
+- How async/await works.
+- Why CancellationToken is used.
+- How EF Core translates LINQ to SQL.
+- IQueryable vs IEnumerable.
+- How to prevent N+1 queries.
+- Why Redis is used.
+- Why WebSocket/SignalR is used for tracking.
+- When gRPC is useful.
+- When GraphQL is useful.
+- Why webhooks must be idempotent and verified.
+- When MQTT is justified.
+- Why REST remains useful.
+- How payment security works.
+- How driver location reaches the customer.
+- How background jobs work.
+- How testing protects business rules.
+- How Docker/deployment works.
+- How to debug production failures using logs/traces/metrics.
+
+The developer should be able to implement a feature end-to-end:
+
+```text
+Requirement
+  -> Domain rule
+  -> Entity / Value Object
+  -> Aggregate behavior
+  -> Command / Query
+  -> Application service/handler
+  -> Repository/port
+  -> Infrastructure
+  -> API endpoint
+  -> DTO
+  -> Tests
+  -> Logging/observability
+  -> Frontend integration
+```
+
+---
+
+# 26. AI Agent Behavior
+
+When asked to implement a feature:
+
+1. First identify the business requirement.
+2. Identify affected bounded area/module.
+3. Identify domain rules/invariants.
+4. Decide whether a new Entity, Value Object, Aggregate behavior or Domain Service is needed.
+5. Define Application command/query/use case.
+6. Define interfaces/ports required by Application.
+7. Implement Infrastructure adapters.
+8. Add API endpoint/contract.
+9. Add validation and authorization.
+10. Add unit/integration tests.
+11. Add logging and error handling.
+12. Consider idempotency/concurrency.
+13. Explain database/index implications.
+14. Only then suggest frontend integration.
+
+When asked to modify code, preserve existing architecture unless there is a strong reason to refactor it.
+
+Do not create layers/files just for ceremony.
+
+Do not introduce a technology because it is fashionable. Every infrastructure component must have a concrete reason.
+
+For this project, prefer a Modular Monolith first and evolve toward distributed services only when scale or ownership boundaries justify it.
+
+# End of Agent Context
+
+# 27. Universal Documentation Engineering Standard
+
+These documentation rules are UNIVERSAL and MUST be applied to every project, regardless of language, framework, architecture, database, or domain.
+
+## 27.1 Documentation is part of implementation
+
+A feature is NOT considered complete until its implementation, tests, and documentation are aligned.
+
+For every meaningful feature/change, the agent MUST evaluate whether these documents need to be created or updated:
+
+- `docs/README.md` — system-level overview when architecture or major capabilities change.
+- `docs/features/<feature>.md` — feature behavior, business rules, use cases, permissions, APIs, data, tests, and edge cases.
+- `docs/architecture/<topic>.md` — architecture decisions or structural changes.
+- `docs/api/<topic>.md` — public/internal API contract changes when applicable.
+- `docs/flows/<flow>.md` — important end-to-end workflows.
+- `docs/security/<topic>.md` — security/authentication/authorization/data-protection changes.
+- `docs/decisions/ADR-xxx.md` — significant architectural or technology decisions.
+
+Do not postpone documentation as a final cleanup step.
+
+## 27.2 Documentation must describe reality
+
+Documentation MUST describe the implemented system, not the desired system.
+
+Never document planned behavior as implemented behavior.
+
+When implementation differs from existing documentation, update the documentation in the same change whenever practical.
+
+If a feature is partially implemented, explicitly mark its status, scope, and limitations.
+
+## 27.3 Required system documentation structure
+
+When a project uses a `docs/` directory, prefer this structure unless the existing repository has a justified alternative:
+
+```text
+docs/
+├── README.md
+├── features/
+│   ├── README.md
+│   └── <feature>.md
+├── architecture/
+│   └── <topic>.md
+├── api/
+│   └── <topic>.md
+├── flows/
+│   └── <flow>.md
+├── security/
+│   └── <topic>.md
+└── decisions/
+    └── ADR-xxx-<decision>.md
+```
+
+The exact folder structure may be adapted to an existing project, but documentation MUST remain discoverable and logically grouped.
+
+## 27.4 System README requirements
+
+The main `docs/README.md` SHOULD provide enough context for a new engineer to understand the project without reading source code first.
+
+It SHOULD cover:
+
+1. Project purpose
+2. Business/domain overview
+3. System actors
+4. Major user journeys
+5. Architecture overview
+6. Technology stack
+7. Repository/module structure
+8. Domain model overview
+9. Data/storage overview
+10. Authentication
+11. Authorization and permission model
+12. API/communication strategy
+13. Background processing
+14. Caching
+15. Realtime behavior when applicable
+16. External integrations
+17. Testing strategy
+18. Security baseline
+19. Observability
+20. Local development
+21. Environment/configuration
+22. Deployment
+23. Known limitations
+24. Future/possible evolution
+
+Prefer diagrams where they communicate relationships or flows more clearly than prose.
+
+## 27.5 Feature documentation standard
+
+Each significant feature document SHOULD contain:
+
+```text
+# Feature
+
+## 1. Overview
+## 2. Actors
+## 3. Business Requirements
+## 4. Business Rules / Invariants
+## 5. State / Lifecycle
+## 6. Use Cases
+## 7. Domain Model
+## 8. Authorization
+## 9. API / Events
+## 10. Data Model
+## 11. Side Effects
+## 12. Background Jobs
+## 13. Realtime Behavior
+## 14. Error Cases
+## 15. Security Considerations
+## 16. Tests
+## 17. Edge Cases
+## 18. Known Limitations
+```
+
+Not every section is mandatory for every feature; omit sections that genuinely do not apply rather than filling them with meaningless text.
+
+## 27.6 API documentation standard
+
+Every documented endpoint SHOULD state:
+
+- HTTP method
+- path
+- purpose
+- authentication requirement
+- permission requirement
+- resource/tenant scope
+- request body/query/path parameters
+- validation rules
+- response shape
+- relevant status codes
+- error cases
+- side effects
+- idempotency behavior where applicable
+- pagination/filter/sort behavior where applicable
+
+Do not document database entities as if they were public API contracts.
+
+## 27.7 Architecture documentation standard
+
+Document architecture at the level necessary to explain boundaries and responsibilities.
+
+Useful topics include:
+
+- system architecture
+- backend architecture
+- frontend architecture
+- mobile architecture
+- domain/module boundaries
+- database design
+- authorization model
+- realtime architecture
+- deployment architecture
+- external integrations
+
+Architecture documentation MUST explain important reasons, not merely list technologies.
+
+Bad:
+
+```text
+We use Redis, SignalR, PostgreSQL, Docker and CQRS.
+```
+
+Good:
+
+```text
+PostgreSQL is the source of truth for transactional order state.
+Redis stores short-lived/high-read data such as current driver location.
+SignalR delivers realtime state changes to connected clients.
+CQRS is used only for read/write paths where the separation materially improves the design.
+```
+
+## 27.8 Architecture Decision Records (ADR)
+
+Create an ADR when a decision has meaningful long-term consequences, trade-offs, or migration cost.
+
+Use this structure:
+
+```md
+# ADR-XXX: Decision Title
+
+## Status
+Accepted | Proposed | Superseded | Deprecated
+
+## Context
+
+## Decision
+
+## Alternatives Considered
+
+## Consequences
+
+## Security / Operational Impact
+
+## Migration / Rollback
+```
+
+Do not create ADRs for trivial implementation details.
+
+## 27.9 Flow documentation
+
+Important workflows SHOULD be documented from actor to final outcome.
+
+Example:
+
+```text
+Actor
+  -> API/UI action
+  -> Authentication
+  -> Authorization
+  -> Application use case
+  -> Domain rules
+  -> Persistence/external system
+  -> Event/job/realtime side effect
+  -> Final client state
+```
+
+State transitions MUST be explicit for lifecycle-heavy features such as:
+- orders
+- payments
+- deliveries
+- approval workflows
+- tickets
+- subscriptions
+- jobs
+- onboarding
+
+Document valid transitions and invalid transitions.
+
+## 27.10 Security documentation
+
+Document security-sensitive behavior when applicable:
+
+- authentication
+- authorization
+- roles and permissions
+- resource/tenant scope
+- secrets/configuration
+- file uploads
+- payment verification
+- webhook signature verification
+- token lifecycle
+- rate limiting
+- audit logging
+- sensitive data handling
+- retention/deletion policy
+
+Never place real secrets, production tokens, private keys, or credentials in documentation.
+
+## 27.11 Permission documentation
+
+When a system has roles and permissions, document all three dimensions when applicable:
+
+```text
+Role
+  -> Permission
+  -> Resource / Tenant / Branch Scope
+```
+
+Document UI/screen permissions separately from server-side authorization behavior when both exist.
+
+Make it explicit that frontend permission checks are UX controls and server-side checks are the security boundary.
+
+## 27.12 Database documentation
+
+Document important data relationships, ownership, constraints, indexes, and consistency boundaries.
+
+The documentation SHOULD distinguish:
+
+- Entity/table
+- Aggregate
+- Aggregate Root
+- Value Object
+- External resource
+
+Do not assume one table equals one domain aggregate.
+
+## 27.13 Realtime / asynchronous documentation
+
+When using queues, workers, events, WebSockets, SignalR, SSE, MQTT, or similar mechanisms, document:
+
+- producer
+- consumer
+- message/event meaning
+- delivery semantics
+- ordering assumptions
+- retries
+- idempotency
+- failure handling
+- reconnect behavior
+- source of truth
+
+Realtime transport MUST NOT be described as the authoritative persistence layer unless the system is explicitly designed that way.
+
+## 27.14 Documentation and source-code truth
+
+When possible, documentation should reference concrete artifacts rather than vague descriptions:
+
+- actual API paths
+- actual module names
+- actual configuration keys (without secret values)
+- actual database concepts
+- actual message/event names
+- actual state names
+- actual permission identifiers
+
+Avoid documenting hypothetical classes or future interfaces as current behavior.
+
+## 27.15 AI agent documentation workflow
+
+For every feature request, the agent MUST follow:
+
+```text
+Understand requirement
+  -> Inspect existing docs
+  -> Inspect source/code structure
+  -> Implement
+  -> Test
+  -> Verify behavior
+  -> Update affected docs
+  -> Inspect diff
+```
+
+Before changing architecture, read the relevant architecture docs and ADRs first.
+
+Before changing a feature, read its feature document first when it exists.
+
+If source code and docs conflict, verify actual behavior and then reconcile the documentation.
+
+## 27.16 Documentation quality rules
+
+Documentation MUST be:
+- accurate
+- concise enough to remain maintainable
+- structured
+- searchable
+- internally consistent
+- explicit about assumptions
+- explicit about limitations
+
+Avoid:
+- marketing language in engineering docs
+- unexplained acronyms
+- giant unstructured paragraphs
+- duplicated conflicting explanations
+- stale code examples
+- fake completeness
+
+Prefer diagrams, tables, state diagrams, and examples when they reduce ambiguity.
+
+## 27.17 Documentation versioning
+
+When behavior changes:
+
+1. Update affected feature docs.
+2. Update API docs if contract changes.
+3. Update architecture docs if boundaries change.
+4. Add/update an ADR when a significant decision changes.
+5. Update flow/security docs when behavior affects them.
+
+Do not leave known stale documentation intentionally unless it is explicitly marked as deprecated/historical.
+
+## 27.18 Definition of Done — Documentation
+
+A feature/change is documentation-complete when:
+
+- The relevant feature document exists or is updated.
+- Business rules are recorded.
+- Authorization is recorded.
+- Important API contracts are recorded.
+- Important state transitions are recorded.
+- Relevant security implications are recorded.
+- Important architecture decisions are recorded.
+- Known edge cases/limitations are recorded.
+- System-level documentation is updated when necessary.
+- No documentation claims behavior that the current code does not implement.
+
+# 28. Universal Project Deliverables
+
+For a mature project, the repository SHOULD contain:
+
+```text
+.agent
+README.md
+
+docs/
+├── README.md
+├── features/
+├── architecture/
+├── api/
+├── flows/
+├── security/
+└── decisions/
+
+tests/
+src/ or app/
+```
+
+The exact source/test structure depends on the technology stack.
+
+`.agent` defines how the AI should engineer the project.
+`docs/` defines what the project actually does and why.
+Source code defines the implemented behavior.
+Tests provide executable evidence for important behavior.
+
+These four should remain consistent:
+
+```text
+.agent
+   ↓ engineering rules
+Source Code
+   ↓ implementation
+Tests
+   ↓ executable verification
+Docs
+   ↓ human/system knowledge
+```
+
+# 29. Final Universal Rule
+
+Always prefer:
+
+```text
+Correctness
+> Security
+> Maintainability
+> Testability
+> Observability
+> Simplicity
+> Performance optimization
+> Architectural sophistication
+```
+
+Architecture, patterns, frameworks, protocols, and tools are means—not goals.
+
+For every project, use the smallest set of concepts and technologies that can satisfy the real requirements while leaving a clear path for future evolution.
