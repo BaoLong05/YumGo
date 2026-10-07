@@ -1,0 +1,10 @@
+{
+  "name": "yumgo",
+  "private": true,
+  "packageManager": "bun@1.3.14",
+  "workspaces": [
+    "web/yumgo-web",
+    "mobile/yumgo-mobile",
+    "packages/contracts"
+  ]
+}
