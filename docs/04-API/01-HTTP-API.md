@@ -59,6 +59,34 @@ Validation:
 
 Returns `201 Created` with `{ "data": { "id", "email", "fullName" } }`. Registration does not issue access or refresh tokens; those belong to the separate login/refresh flows. Duplicate email and phone both return the same generic `409 Conflict` response to avoid account enumeration. Invalid fields return `422 Unprocessable Content`; the in-process limiter allows at most 5 requests per minute per observed client IP on each API instance and returns `429 Too Many Requests` after that limit. Multi-instance deployments need a shared limiter or gateway policy for a global quota.
 
+### Login request and response
+
+`POST /api/v1/auth/login` accepts `{ "email": "long@example.com", "password": "..." }`. Success returns `200 OK` in the standard envelope:
+
+```json
+{
+  "data": {
+    "accessToken": "<signed-jwt>",
+    "accessTokenExpiresAt": "<UTC timestamp>",
+    "refreshToken": "<opaque-token>",
+    "refreshTokenExpiresAt": "<UTC timestamp>",
+    "tokenType": "Bearer"
+  }
+}
+```
+
+Invalid, missing, disabled, or suspended accounts receive the same generic `401 Unauthorized` shape. Login is limited to 5 requests per minute per observed client IP per API instance.
+
+### Refresh and logout
+
+`POST /api/v1/auth/refresh` accepts `{ "refreshToken": "<current-opaque-token>" }` and returns the same token envelope. A successful refresh rotates the token, invalidates its predecessor, and preserves the original `refreshTokenExpiresAt` (48 hours after login); it does not extend the session. Invalid, expired, or replayed tokens return generic `401 Unauthorized`. Replaying a rotated token revokes its descendant chain. Refresh is limited to 10 requests per minute per observed client IP per API instance.
+
+`POST /api/v1/auth/logout` requires both `Authorization: Bearer <accessToken>` and `{ "refreshToken": "<current-opaque-token>" }`; success returns `204 No Content`. The refresh token must match the JWT's current session. Logout revokes that session, and the API rejects its access JWT immediately on subsequent authenticated requests. Missing refresh token returns `400 Bad Request`.
+
+`GET /api/v1/auth/me` requires a valid bearer token and returns `{ "data": { "id": "<user-id>", "roles": ["<database-role>"] } }`; it does not expose profile or address data.
+
+Access JWT lifetime defaults to 15 minutes (configurable from 1 to 60 minutes) and is capped by the absolute 48-hour session deadline. The API requires `Authentication__Jwt__Issuer`, `Authentication__Jwt__Audience`, and `Authentication__Jwt__SigningKey` at runtime; the signing key is base64-encoded and at least 32 bytes. See the authentication security specification for deployment and proxy/rate-limit considerations.
+
 ## 6.3 Customer profile/addresses
 
 | Method | Route |

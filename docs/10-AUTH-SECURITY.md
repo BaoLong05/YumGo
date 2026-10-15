@@ -2,10 +2,11 @@
 
 ## 10.1 Authentication model
 
-- Access token: short-lived JWT for API access.
-- Refresh token: long-lived opaque random token stored only as a hash server-side.
+- Access token: HS256 JWT, 15 minutes by default (configurable 1–60 minutes), never beyond the session deadline.
+- Refresh token: 256-bit opaque random token; only its SHA-256 hash is stored server-side.
+- Session lifetime is an absolute 48 hours from login; refresh rotation never extends it.
 - Refresh token rotation is required.
-- Token revocation occurs on logout, rotation reuse detection, suspension and security reset.
+- `sid` binds each access JWT to its current refresh-token row; authenticated requests verify the row and active user status. Logout, refresh rotation, expiry, and suspension invalidate that JWT immediately.
 
 ## 10.2 Login flow
 
@@ -40,7 +41,8 @@ Minimum useful claims:
 - `jti` token ID
 - `iat`
 - `exp`
-- role/permission claims only when their lifecycle is understood
+- `sid` current refresh-token row ID
+- role claims loaded from the database (never accepted from the client)
 
 Resource scope must still be checked server-side. A role claim is not a substitute for a resource ownership check.
 
@@ -50,12 +52,12 @@ On refresh:
 1. hash submitted refresh token
 2. look up active token record
 3. verify not expired/revoked
-4. revoke the old token
-5. create a new refresh token
-6. issue a new access token
-7. audit the rotation
+4. atomically revoke the old token and create its replacement
+5. preserve the original absolute `expires_at` on the replacement
+6. issue an access JWT bound to the replacement row
+7. audit the rotation without storing token values
 
-Detected reuse of a revoked refresh token triggers revocation of the affected token family/session according to security policy.
+Detected reuse of a revoked refresh token revokes its descendant chain. Concurrent refresh attempts are resolved with a conditional database update; a losing/replayed token cannot keep the successor session active.
 
 ## 10.6 Transport security
 
@@ -76,6 +78,8 @@ Apply stronger controls to:
 - payment initiation
 - webhooks when provider guidance allows it
 
+Registration and login permit 5 requests per minute per observed client IP; refresh permits 10 per minute. These are in-process fixed windows per API instance; multi-instance deployments need a shared limiter or gateway policy. Configure trusted forwarded headers before relying on client-IP partitioning behind a reverse proxy.
+
 ## 10.9 Input validation
 
 Validate at the API boundary:
@@ -94,8 +98,9 @@ Never bind public request DTOs directly to EF entities.
 
 ## 10.11 Secret management
 
-Secrets belong in environment/secret storage:
-- JWT signing key
+Secrets belong in environment/secret storage. The API requires `Authentication__Jwt__Issuer`, `Authentication__Jwt__Audience`, and `Authentication__Jwt__SigningKey`; the signing key must be base64-encoded and contain at least 32 bytes. `Authentication__Jwt__AccessTokenLifetimeMinutes` defaults to 15 and accepts 1–60. Never commit or log the signing key.
+
+Other secrets belong in environment/secret storage:
 - database credentials
 - Redis credentials if enabled
 - payment provider secret
@@ -110,7 +115,7 @@ Verify signatures before parsing the event as trusted business data.
 ## 10.13 Audit events
 
 Audit at least:
-- login success/failure where policy requires
+- login success/failure, refresh rotation/reuse, and logout; never include passwords or raw tokens
 - role changes
 - suspension/reactivation
 - payment reconciliation

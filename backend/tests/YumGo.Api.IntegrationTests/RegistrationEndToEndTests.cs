@@ -28,6 +28,7 @@ public sealed class RegistrationEndToEndTests
 
         using var factory = new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
         {
+            TestJwtConfiguration.Apply(builder);
             builder.ConfigureAppConfiguration((_, configuration) =>
                 configuration.AddInMemoryCollection(new Dictionary<string, string?>
                 {
