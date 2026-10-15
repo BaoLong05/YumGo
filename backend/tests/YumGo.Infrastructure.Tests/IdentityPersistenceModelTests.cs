@@ -89,13 +89,14 @@ public sealed class IdentityPersistenceModelTests
         using var context = CreateContext();
         var entity = Assert.IsAssignableFrom<Microsoft.EntityFrameworkCore.Metadata.IEntityType>(
             context.Model.FindEntityType(typeof(User)));
-        var phone = entity.FindProperty("phone");
+        var phone = entity.FindProperty(nameof(User.PhoneNumber));
         Assert.NotNull(phone);
         Assert.True(phone.IsNullable);
+        Assert.Equal("phone", phone.GetColumnName());
         Assert.Equal("varchar(20)", phone.GetColumnType());
 
         var index = Assert.Single(entity.GetIndexes(), candidate =>
-            candidate.Properties.Any(property => property.Name == "phone"));
+            candidate.Properties.Any(property => property.Name == nameof(User.PhoneNumber)));
         Assert.True(index.IsUnique);
         Assert.Equal(
             "\"phone\" IS NOT NULL",

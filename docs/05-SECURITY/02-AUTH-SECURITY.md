@@ -29,7 +29,7 @@ A disabled/suspended account cannot receive a new session.
 
 ## 10.3 Password storage
 
-Use a proven password hashing implementation from the .NET ecosystem. Do not implement password hashing primitives manually.
+Registration uses ASP.NET Core Identity's versioned `PasswordHasher<T>` implementation; verification accepts successful verification and rehash-needed outcomes. Do not implement password hashing primitives manually. The registration policy requires at least 6 characters and at least 3 of 4 groups: uppercase, lowercase, digit and symbol.
 
 Never log passwords.
 
@@ -75,6 +75,8 @@ Apply stronger controls to:
 - OTP-like verification endpoints if later added
 - payment initiation
 - webhooks when provider guidance allows it
+
+The implemented registration endpoint currently permits 5 requests per minute per observed client IP using an in-process fixed window (per API instance). Multi-instance deployments need a shared limiter or gateway policy for a global quota. Behind a reverse proxy, configure trusted forwarded-header handling before relying on per-client-IP partitioning; do not trust arbitrary forwarded headers.
 
 ## 10.9 Input validation
 

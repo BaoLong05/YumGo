@@ -45,7 +45,7 @@ Collection:
 ```json
 {
   "email": "long@example.com",
-  "phone": "+84900000000",
+  "phone": "+84912340000",
   "password": "strong-password",
   "fullName": "Long Tran"
 }
@@ -53,11 +53,11 @@ Collection:
 
 Validation:
 - valid normalized email
-- password meets configured password policy
-- phone valid if supplied
-- email/phone unique
+- password is at least 6 characters and has at least 3 of 4 character groups (uppercase, lowercase, digit, symbol)
+- phone is valid and normalized to E.164 form if supplied
+- email/phone unique under current database constraints
 
-Returns `201 Created` with public user profile and access/refresh token strategy defined by deployment.
+Returns `201 Created` with `{ "data": { "id", "email", "fullName" } }`. Registration does not issue access or refresh tokens; those belong to the separate login/refresh flows. Duplicate email and phone both return the same generic `409 Conflict` response to avoid account enumeration. Invalid fields return `422 Unprocessable Content`; the in-process limiter allows at most 5 requests per minute per observed client IP on each API instance and returns `429 Too Many Requests` after that limit. Multi-instance deployments need a shared limiter or gateway policy for a global quota.
 
 ## 6.3 Customer profile/addresses
 

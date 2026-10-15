@@ -38,6 +38,10 @@ namespace YumGo.Infrastructure.Persistence.Migrations
                         .HasColumnType("varchar(255)")
                         .HasColumnName("password_hash");
 
+                    b.Property<string>("PhoneNumber")
+                        .HasColumnType("varchar(20)")
+                        .HasColumnName("phone");
+
                     b.Property<string>("Status")
                         .IsRequired()
                         .HasColumnType("varchar(20)")
@@ -57,10 +61,6 @@ namespace YumGo.Infrastructure.Persistence.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("email_verified_at");
 
-                    b.Property<string>("phone")
-                        .HasColumnType("varchar(20)")
-                        .HasColumnName("phone");
-
                     b.Property<DateTimeOffset>("updated_at")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("timestamp with time zone")
@@ -73,7 +73,7 @@ namespace YumGo.Infrastructure.Persistence.Migrations
                         .IsUnique()
                         .HasDatabaseName("ux_users_email");
 
-                    b.HasIndex("phone")
+                    b.HasIndex("PhoneNumber")
                         .IsUnique()
                         .HasDatabaseName("ux_users_phone")
                         .HasFilter("\"phone\" IS NOT NULL");

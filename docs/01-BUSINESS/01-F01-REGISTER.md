@@ -8,26 +8,26 @@ Create a new customer account safely.
 
 ### Inputs
 - email: required, 5..254, lowercase-normalized, syntactically valid
-- password: required, minimum policy length, must pass password strength policy
+- password: required, at least 6 characters and at least 3 of 4 character groups (uppercase, lowercase, digit, symbol)
 - fullName: required, 2..120 after trim
 - phone: optional, normalized and unique when present
 
 ### Validation
-- email must not belong to another non-deleted user;
-- phone must not belong to another active user;
+- email must be unique across persisted users under the current database constraint;
+- phone must be unique across persisted users when present under the current database constraint;
 - password is hashed server-side;
 - no client-provided user ID/status/role accepted;
 - role is assigned server-side as Customer;
-- profile and user are created atomically.
+- profile, user and the server-assigned Customer role are created atomically.
 
 ### DB writes
-`users` + `customer_profiles`; optional verification record if email verification is enabled.
+`users` + `customer_profiles` + `user_roles`; no email-verification record is created by this slice.
 
 ### Failure cases
-409 duplicate email/phone; 422 invalid fields; generic 500 for unexpected failure.
+409 generic duplicate-account response (email/phone are not distinguished); 422 invalid fields; 429 registration rate limit; generic 500 for unexpected failure.
 
 ### Acceptance
-A successful registration creates exactly one user and one profile; a repeated request cannot create duplicates.
+A successful `POST /api/v1/auth/register` creates exactly one user, customer profile and Customer role link; a repeated request cannot create duplicates. The response contains only the public profile and does not issue access/refresh tokens.
 
 
 ## Common security rule
