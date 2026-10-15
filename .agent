@@ -1048,6 +1048,18 @@ Why:
 
 However, do NOT add MQTT in V1 if the traffic is small. REST/WebSocket can be enough initially. Introduce MQTT when the system actually needs high-frequency telemetry at scale.
 
+## 8.8 Protocol decision and change gate
+
+Before proposing or implementing a new API protocol, changing an existing endpoint to another protocol, or adding a second interface for the same use case:
+
+1. Identify the concrete workflow and unmet requirement (latency, bidirectional messaging, client-driven field selection, streaming, throughput, or service boundary).
+2. Compare the smallest viable options, including keeping the current REST/HTTP contract. Explain why the existing protocol is insufficient; do not add GraphQL, WebSocket, gRPC, SSE, or MQTT for novelty or hypothetical scale.
+3. State the recommendation and trade-offs: operational/deployment complexity, authorization, validation, observability, caching, versioning, testing, and client compatibility as applicable.
+4. Tell the user the reason and alternatives before changing the API contract or adding a protocol. Wait for user approval for a material protocol/contract change; until approved, keep the existing API and implement only protocol-neutral domain/application behavior where possible.
+5. Update API documentation/contracts/tests and record an ADR for a significant architectural choice.
+
+Default V1 remains REST for business commands/queries, WebSocket (SignalR) for authorized interactive realtime, and signed webhooks for external callbacks. Consider GraphQL only after concrete clients demonstrate costly over-fetching or repeated aggregation requests that optimized REST read endpoints cannot reasonably address. Consider SSE for one-way feeds; gRPC for independently deployed internal services; MQTT only when measured telemetry scale/connection needs justify it.
+
 ---
 
 # 9. Recommended V1 Architecture
