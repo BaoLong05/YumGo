@@ -1,8 +1,11 @@
 # Negative / Security Test Matrix
 
 ## Identity
-- register duplicate normalized email -> 409
-- register duplicate normalized phone -> 409
+- register duplicate normalized email -> generic 409 without revealing which identifier matched
+- register duplicate normalized phone -> generic 409 without revealing which identifier matched
+- register password below minimum/strength policy -> 422
+- sixth registration attempt from the same observed IP within one minute -> 429
+- successful registration -> 201 without password/hash/token fields in the response; user, profile and Customer role link persist atomically
 - wrong password -> auth failure without account enumeration
 - suspended account -> blocked
 - revoked refresh token -> blocked

@@ -13,7 +13,8 @@ public sealed record Email
         ArgumentException.ThrowIfNullOrWhiteSpace(value);
 
         var normalized = value.Trim().ToLowerInvariant();
-        if (!MailAddress.TryCreate(normalized, out var parsed)
+        if (normalized.Length is < 5 or > 254
+            || !MailAddress.TryCreate(normalized, out var parsed)
             || !string.Equals(parsed.Address, normalized, StringComparison.OrdinalIgnoreCase))
         {
             throw new ArgumentException("The email address is invalid.", nameof(value));

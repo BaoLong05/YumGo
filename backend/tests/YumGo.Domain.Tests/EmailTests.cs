@@ -20,4 +20,13 @@ public sealed class EmailTests
     {
         Assert.Throws<ArgumentException>(() => Email.Create(value));
     }
+
+    [Fact]
+    public void Create_rejects_email_longer_than_254_characters()
+    {
+        var value = $"{new string('a', 243)}@example.com";
+
+        Assert.Equal(255, value.Length);
+        Assert.Throws<ArgumentException>(() => Email.Create(value));
+    }
 }

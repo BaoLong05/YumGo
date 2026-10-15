@@ -31,6 +31,17 @@ public sealed class UserTests
     }
 
     [Fact]
+    public void Register_preserves_the_normalized_optional_phone_number()
+    {
+        var user = User.Register(
+            Email.Create("long@example.com"),
+            PasswordHash.FromEncodedHash("encoded-password-hash"),
+            PhoneNumber.Create("+84 912-345-678"));
+
+        Assert.Equal("+84912345678", user.PhoneNumber?.Value);
+    }
+
+    [Fact]
     public void Suspend_marks_the_user_as_suspended()
     {
         var user = CreateUser();

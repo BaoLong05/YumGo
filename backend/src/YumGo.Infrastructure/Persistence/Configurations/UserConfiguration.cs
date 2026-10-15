@@ -54,9 +54,12 @@ internal sealed class UserConfiguration : IEntityTypeConfiguration<User>
             .HasColumnName("deleted_at")
             .HasColumnType("timestamp with time zone");
 
-        builder.Property<string?>("phone")
+        builder.Property(user => user.PhoneNumber)
             .HasColumnName("phone")
-            .HasColumnType("varchar(20)");
+            .HasColumnType("varchar(20)")
+            .HasConversion(
+                phoneNumber => phoneNumber == null ? null : phoneNumber.Value,
+                value => value == null ? null : PhoneNumber.Create(value));
 
         builder.Property<DateTimeOffset?>("email_verified_at")
             .HasColumnName("email_verified_at")
@@ -76,7 +79,7 @@ internal sealed class UserConfiguration : IEntityTypeConfiguration<User>
             .IsUnique()
             .HasDatabaseName("ux_users_email");
 
-        builder.HasIndex("phone")
+        builder.HasIndex(user => user.PhoneNumber)
             .IsUnique()
             .HasDatabaseName("ux_users_phone")
             .HasFilter("\"phone\" IS NOT NULL");
