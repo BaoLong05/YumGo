@@ -179,12 +179,13 @@ CREATE TABLE menu_categories (
     deleted_at timestamptz
 );
 CREATE UNIQUE INDEX ux_category_name_per_branch ON menu_categories(branch_id, lower(name)) WHERE deleted_at IS NULL;
+CREATE UNIQUE INDEX ux_menu_categories_branch_id_id ON menu_categories(branch_id,id);
 CREATE INDEX ix_menu_categories_branch ON menu_categories(branch_id, status, display_order);
 
 CREATE TABLE menu_items (
     id varchar(21) PRIMARY KEY,
     branch_id varchar(21) NOT NULL REFERENCES restaurant_branches(id) ON DELETE RESTRICT,
-    category_id varchar(21) NOT NULL REFERENCES menu_categories(id) ON DELETE RESTRICT,
+    category_id varchar(21) NOT NULL,
     name varchar(160) NOT NULL CHECK (char_length(trim(name)) BETWEEN 2 AND 160),
     description varchar(2000),
     price numeric(12,2) NOT NULL CHECK (price >= 0),
@@ -192,13 +193,16 @@ CREATE TABLE menu_items (
     status varchar(20) NOT NULL CHECK (status IN ('active','inactive')),
     created_at timestamptz NOT NULL,
     updated_at timestamptz NOT NULL,
-    deleted_at timestamptz
+    deleted_at timestamptz,
+    CONSTRAINT fk_menu_items_category_branch
+        FOREIGN KEY (branch_id,category_id)
+        REFERENCES menu_categories(branch_id,id)
+        ON DELETE RESTRICT
 );
 CREATE INDEX ix_menu_items_branch_status ON menu_items(branch_id,status,stock_status) WHERE deleted_at IS NULL;
 CREATE INDEX ix_menu_items_category ON menu_items(category_id,status) WHERE deleted_at IS NULL;
-CREATE INDEX ix_menu_items_branch_id_fk ON menu_items(branch_id);
-CREATE INDEX ix_menu_items_category_id_fk ON menu_items(category_id);
--- category.branch_id = menu_items.branch_id is an application/domain invariant.
+CREATE INDEX ix_menu_items_branch_category_fk ON menu_items(branch_id,category_id);
+-- The composite FK enforces menu_items.branch_id = menu_categories.branch_id.
 
 CREATE TABLE carts (
     id varchar(21) PRIMARY KEY,

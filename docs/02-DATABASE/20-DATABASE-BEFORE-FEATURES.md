@@ -25,7 +25,8 @@ Before business features:
 - duplicate unique value -> must fail;
 - invalid money/range -> must fail;
 - invalid status -> must fail;
-- invalid branch/category/item relation -> application test must fail;
+- invalid menu-item/category branch relation -> PostgreSQL composite FK must reject;
+- cart/order item branch mismatch -> application transaction test must reject;
 - transaction rollback test -> no partial order.
 
 ## Phase 3 — Feature implementation
