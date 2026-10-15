@@ -9,7 +9,7 @@
 | restaurants | restaurant_staff | 1:N | restaurant_staff.restaurant_id | RESTRICT | staff scope |
 | users | restaurant_staff | 1:N | restaurant_staff.user_id | RESTRICT | no duplicate assignment |
 | restaurant_branches | menu_categories | 1:N | menu_categories.branch_id | RESTRICT | same branch scope |
-| menu_categories | menu_items | 1:N | menu_items.category_id | RESTRICT | category.branch_id=item.branch_id |
+| menu_categories | menu_items | 1:N | (menu_items.branch_id, menu_items.category_id) | RESTRICT | composite FK enforces matching branch |
 | restaurant_branches | menu_items | 1:N | menu_items.branch_id | RESTRICT | source branch |
 | users | carts | 1:N | carts.customer_id | RESTRICT | one active cart per branch |
 | restaurant_branches | carts | 1:N | carts.branch_id | RESTRICT | cart source |
@@ -32,7 +32,7 @@
 | users | devices | 1:N | user_id | RESTRICT | token ownership |
 
 ### Cross-relation invariants
-1. `menu_item.category_id` and `menu_item.branch_id` must point to the same branch.
+1. `menu_item.category_id` and `menu_item.branch_id` must point to the same branch; enforced by `fk_menu_items_category_branch`.
 2. `cart_item.menu_item_id` must belong to `cart.branch_id`.
 3. `order.branch_id` determines the restaurant that is fulfilling the order.
 4. `order_item.menu_item_id` must belong to `order.branch_id` at placement time.

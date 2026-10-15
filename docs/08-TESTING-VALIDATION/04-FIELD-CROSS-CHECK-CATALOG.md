@@ -10,7 +10,7 @@
 | Order cancellation | status + cancelled_at + reason | cancelled => timestamp + reason |
 | Order timestamps | placed/confirmed/preparing/ready/picked_up/delivered | monotonic sequence |
 | Cart item | cart.branch_id + menu_item.branch_id | must match |
-| Menu item | category.branch_id + item.branch_id | must match |
+| Menu item | category.branch_id + item.branch_id | must match; PostgreSQL composite FK |
 | Order item | order.branch_id + menu_item.branch_id | must match at placement |
 | Payment | payment.order_id + amount | amount equals authorized order amount |
 | Refund | refund.amount + paid/refunded sum | total refunds <= paid amount |

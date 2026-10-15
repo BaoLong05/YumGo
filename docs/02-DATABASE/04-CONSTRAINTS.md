@@ -38,6 +38,8 @@ These MUST be enforced in application/domain transaction:
 - promotion eligibility;
 - ownership and permission scope.
 
+Menu item/category branch consistency is enforced by the composite foreign key `fk_menu_items_category_branch`; the cart and order item branch rules remain application/domain transaction invariants.
+
 The order total equation is enforced directly by the `orders` table CHECK constraint in `schema/06-POSTGRESQL-SCHEMA.sql`; application code must still calculate and validate the same equation before persistence.
 
 ## 5. Transaction boundary

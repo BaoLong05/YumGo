@@ -107,7 +107,7 @@ Unique `(branch_id, normalized_name)` among non-deleted rows.
 | created_at/updated_at | timestamptz | UTC |
 | deleted_at | timestamptz | soft delete |
 
-Cross-table: `category.branch_id = menu_items.branch_id`.
+Cross-table: `category.branch_id = menu_items.branch_id`; PostgreSQL enforces this with `fk_menu_items_category_branch` on `(branch_id,category_id)`.
 
 ## 11. `carts`
 `id`, `customer_id`, `branch_id`, `status(active/checked_out/abandoned)`, `expires_at`, timestamps.

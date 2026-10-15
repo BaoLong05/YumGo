@@ -7,6 +7,8 @@ Minimum indexes:
 - `restaurant_branches(restaurant_id,status)`.
 - `menu_items(branch_id,status,stock_status)`.
 - `menu_categories(branch_id,status)`.
+- `menu_categories(branch_id,id)` unique target for the menu-item composite FK.
+- `menu_items(branch_id,category_id)` full index for the composite FK and branch FK; it replaces the two standalone menu-item FK indexes.
 - `carts(customer_id,branch_id,status)`.
 - `carts(branch_id)` for the branch FK lookup.
 - `cart_items(cart_id)`.

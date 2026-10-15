@@ -250,4 +250,97 @@ public sealed class DatabaseSchemaContractTests
         Assert.Equal(2, deviceCount);
         Assert.Equal(1, activeTokenIndexCount);
     }
+
+    [Fact]
+    public async Task Menu_item_must_use_category_from_the_same_branch()
+    {
+        await using var postgres = new PostgreSqlBuilder("postgres:17-alpine")
+            .WithDatabase("yumgo_menu_branch_scope_test")
+            .WithUsername("postgres")
+            .WithPassword(Guid.NewGuid().ToString("N"))
+            .Build();
+
+        await postgres.StartAsync();
+
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseNpgsql(postgres.GetConnectionString())
+            .Options;
+        await using var context = new ApplicationDbContext(options);
+        await context.Database.MigrateAsync();
+
+        await context.Database.ExecuteSqlRawAsync("""
+            INSERT INTO users (id, email, password_hash, status, created_at, updated_at)
+            VALUES ('aaaaaaaaaaaaaaaaaaaaa', 'menu-owner@example.test', 'hash', 'active', NOW(), NOW());
+
+            INSERT INTO restaurants (id, owner_user_id, name, status, created_at, updated_at)
+            VALUES ('bbbbbbbbbbbbbbbbbbbbb', 'aaaaaaaaaaaaaaaaaaaaa', 'Restaurant', 'active', NOW(), NOW());
+
+            INSERT INTO restaurant_branches (
+                id, restaurant_id, name, phone, address_line, ward, district, city,
+                latitude, longitude, status, created_at, updated_at)
+            VALUES
+                ('ccccccccccccccccccccc', 'bbbbbbbbbbbbbbbbbbbbb', 'Branch A', 'branch-a',
+                 '123 Example Street', 'Ward 1', 'District 1', 'HCMC', 10, 106, 'open', NOW(), NOW()),
+                ('ddddddddddddddddddddd', 'bbbbbbbbbbbbbbbbbbbbb', 'Branch B', 'branch-b',
+                 '456 Example Street', 'Ward 2', 'District 2', 'HCMC', 10, 106, 'open', NOW(), NOW());
+
+            INSERT INTO menu_categories (
+                id, branch_id, name, display_order, status, created_at, updated_at)
+            VALUES ('eeeeeeeeeeeeeeeeeeeee', 'ccccccccccccccccccccc', 'Category A', 0, 'active', NOW(), NOW());
+
+            INSERT INTO menu_items (
+                id, branch_id, category_id, name, description, price, stock_status,
+                status, created_at, updated_at)
+            VALUES ('fffffffffffffffffffff', 'ccccccccccccccccccccc', 'eeeeeeeeeeeeeeeeeeeee',
+                    'Item A', NULL, 50, 'available', 'active', NOW(), NOW());
+            """);
+
+        var exception = await Assert.ThrowsAsync<PostgresException>(async () =>
+            await context.Database.ExecuteSqlRawAsync("""
+                INSERT INTO menu_items (
+                    id, branch_id, category_id, name, description, price, stock_status,
+                    status, created_at, updated_at)
+                VALUES ('ggggggggggggggggggggg', 'ddddddddddddddddddddd', 'eeeeeeeeeeeeeeeeeeeee',
+                        'Cross Branch Item', NULL, 50, 'available', 'active', NOW(), NOW());
+                """));
+
+        Assert.Equal("fk_menu_items_category_branch", exception.ConstraintName);
+    }
+
+    [Fact]
+    public async Task Rolling_back_menu_branch_scope_migration_restores_previous_fk_and_indexes()
+    {
+        await using var postgres = new PostgreSqlBuilder("postgres:17-alpine")
+            .WithDatabase("yumgo_menu_branch_scope_rollback_test")
+            .WithUsername("postgres")
+            .WithPassword(Guid.NewGuid().ToString("N"))
+            .Build();
+
+        await postgres.StartAsync();
+
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseNpgsql(postgres.GetConnectionString())
+            .Options;
+        await using var context = new ApplicationDbContext(options);
+        await context.Database.MigrateAsync();
+        await context.GetService<IMigrator>().MigrateAsync("20261015120000_AlignPromotionAndPaymentTransactionConstraints");
+
+        var compositeForeignKeyCount = await context.Database
+            .SqlQueryRaw<int>("SELECT count(*)::int AS \"Value\" FROM pg_constraint WHERE conname = 'fk_menu_items_category_branch'")
+            .SingleAsync();
+        var previousForeignKeyCount = await context.Database
+            .SqlQueryRaw<int>("SELECT count(*)::int AS \"Value\" FROM pg_constraint WHERE conname = 'menu_items_category_id_fkey'")
+            .SingleAsync();
+        var previousIndexCount = await context.Database
+            .SqlQueryRaw<int>("SELECT count(*)::int AS \"Value\" FROM pg_indexes WHERE indexname IN ('ix_menu_items_branch_id_fk', 'ix_menu_items_category_id_fk')")
+            .SingleAsync();
+        var compositeIndexCount = await context.Database
+            .SqlQueryRaw<int>("SELECT count(*)::int AS \"Value\" FROM pg_indexes WHERE indexname IN ('ux_menu_categories_branch_id_id', 'ix_menu_items_branch_category_fk')")
+            .SingleAsync();
+
+        Assert.Equal(0, compositeForeignKeyCount);
+        Assert.Equal(1, previousForeignKeyCount);
+        Assert.Equal(2, previousIndexCount);
+        Assert.Equal(0, compositeIndexCount);
+    }
 }
