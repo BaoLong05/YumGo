@@ -27,9 +27,8 @@ CHECK (longitude BETWEEN -180 AND 180)
 ## 3. Partial unique indexes
 Use partial unique indexes for stateful rules, e.g. one default address per user or one active cart per branch.
 
-## 4. Cross-field rules that DB alone cannot fully express
+## 4. Rules requiring application/domain transaction enforcement
 These MUST be enforced in application/domain transaction:
-- order total equation;
 - cart item branch consistency;
 - payment amount = order payable amount;
 - cumulative refunds <= payment amount;
@@ -38,6 +37,8 @@ These MUST be enforced in application/domain transaction:
 - restaurant status and branch status compatibility;
 - promotion eligibility;
 - ownership and permission scope.
+
+The order total equation is enforced directly by the `orders` table CHECK constraint in `schema/06-POSTGRESQL-SCHEMA.sql`; application code must still calculate and validate the same equation before persistence.
 
 ## 5. Transaction boundary
 Operations that create or transition multiple related rows must run in one transaction when partial completion would create invalid business state.
