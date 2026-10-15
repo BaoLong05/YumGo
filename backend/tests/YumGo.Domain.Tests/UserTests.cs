@@ -12,7 +12,7 @@ public sealed class UserTests
 
         var user = User.Register(email, passwordHash);
 
-        Assert.NotEqual(Guid.Empty, user.Id);
+        Assert.Matches("^[A-Za-z0-9_-]{21}$", user.Id.Value);
         Assert.Equal("long.tran@example.com", user.Email.Value);
         Assert.Equal(passwordHash, user.PasswordHash);
         Assert.Equal(UserStatus.Active, user.Status);

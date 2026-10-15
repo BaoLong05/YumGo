@@ -1,0 +1,365 @@
+using Microsoft.EntityFrameworkCore.Migrations;
+
+#nullable disable
+
+namespace YumGo.Infrastructure.Persistence.Migrations;
+
+/// <summary>Creates the remaining database-first schema after the initial identity user migrations.</summary>
+public partial class FullCommerceSchema : Migration
+{
+    protected override void Up(MigrationBuilder migrationBuilder)
+    {
+        migrationBuilder.Sql("""
+            CREATE TABLE roles (
+                id varchar(21) PRIMARY KEY,
+                code varchar(50) NOT NULL UNIQUE,
+                name varchar(100) NOT NULL,
+                created_at timestamptz NOT NULL
+            );
+            CREATE TABLE permissions (
+                id varchar(21) PRIMARY KEY,
+                code varchar(120) NOT NULL UNIQUE,
+                name varchar(150) NOT NULL,
+                created_at timestamptz NOT NULL
+            );
+            CREATE TABLE user_roles (
+                id varchar(21) PRIMARY KEY,
+                user_id varchar(21) NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+                role_id varchar(21) NOT NULL REFERENCES roles(id) ON DELETE RESTRICT,
+                created_at timestamptz NOT NULL,
+                UNIQUE (user_id, role_id)
+            );
+            CREATE INDEX ix_user_roles_role_id ON user_roles(role_id);
+            CREATE TABLE role_permissions (
+                id varchar(21) PRIMARY KEY,
+                role_id varchar(21) NOT NULL REFERENCES roles(id) ON DELETE RESTRICT,
+                permission_id varchar(21) NOT NULL REFERENCES permissions(id) ON DELETE RESTRICT,
+                created_at timestamptz NOT NULL,
+                UNIQUE (role_id, permission_id)
+            );
+            CREATE INDEX ix_role_permissions_permission_id ON role_permissions(permission_id);
+            CREATE TABLE refresh_tokens (
+                id varchar(21) PRIMARY KEY,
+                user_id varchar(21) NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+                token_hash varchar(255) NOT NULL UNIQUE,
+                expires_at timestamptz NOT NULL,
+                revoked_at timestamptz,
+                replaced_by_id varchar(21) REFERENCES refresh_tokens(id) ON DELETE RESTRICT,
+                created_at timestamptz NOT NULL,
+                CHECK (expires_at > created_at),
+                CHECK (revoked_at IS NULL OR revoked_at >= created_at)
+            );
+            CREATE INDEX ix_refresh_tokens_user_id ON refresh_tokens(user_id, expires_at DESC);
+            CREATE INDEX ix_refresh_tokens_replaced_by_id ON refresh_tokens(replaced_by_id);
+            CREATE TABLE customer_profiles (
+                id varchar(21) PRIMARY KEY,
+                user_id varchar(21) NOT NULL UNIQUE REFERENCES users(id) ON DELETE RESTRICT,
+                full_name varchar(120) NOT NULL CHECK (char_length(trim(full_name)) BETWEEN 2 AND 120),
+                date_of_birth date CHECK (date_of_birth IS NULL OR date_of_birth <= CURRENT_DATE),
+                avatar_url varchar(1000),
+                created_at timestamptz NOT NULL,
+                updated_at timestamptz NOT NULL
+            );
+            CREATE TABLE addresses (
+                id varchar(21) PRIMARY KEY,
+                user_id varchar(21) NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+                label varchar(40) NOT NULL CHECK (char_length(trim(label)) BETWEEN 1 AND 40),
+                recipient_name varchar(120) NOT NULL CHECK (char_length(trim(recipient_name)) BETWEEN 2 AND 120),
+                recipient_phone varchar(20) NOT NULL,
+                address_line varchar(255) NOT NULL CHECK (char_length(trim(address_line)) BETWEEN 5 AND 255),
+                ward varchar(100) NOT NULL CHECK (char_length(trim(ward)) >= 1),
+                district varchar(100) NOT NULL CHECK (char_length(trim(district)) >= 1),
+                city varchar(100) NOT NULL CHECK (char_length(trim(city)) >= 1),
+                latitude numeric(9,6), longitude numeric(9,6),
+                is_default boolean NOT NULL DEFAULT false,
+                created_at timestamptz NOT NULL, updated_at timestamptz NOT NULL,
+                CHECK ((latitude IS NULL AND longitude IS NULL) OR (latitude IS NOT NULL AND longitude IS NOT NULL)),
+                CHECK (latitude IS NULL OR latitude BETWEEN -90 AND 90),
+                CHECK (longitude IS NULL OR longitude BETWEEN -180 AND 180)
+            );
+            CREATE UNIQUE INDEX ux_addresses_default_per_user ON addresses(user_id) WHERE is_default = true;
+            CREATE INDEX ix_addresses_user_id ON addresses(user_id, updated_at DESC);
+            CREATE TABLE restaurants (
+                id varchar(21) PRIMARY KEY,
+                owner_user_id varchar(21) NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+                name varchar(160) NOT NULL CHECK (char_length(trim(name)) BETWEEN 2 AND 160),
+                description varchar(2000),
+                status varchar(20) NOT NULL CHECK (status IN ('pending','active','suspended','closed')),
+                created_at timestamptz NOT NULL, updated_at timestamptz NOT NULL, deleted_at timestamptz
+            );
+            CREATE INDEX ix_restaurants_owner_user_id ON restaurants(owner_user_id);
+            CREATE INDEX ix_restaurants_status ON restaurants(status) WHERE deleted_at IS NULL;
+            CREATE TABLE restaurant_branches (
+                id varchar(21) PRIMARY KEY,
+                restaurant_id varchar(21) NOT NULL REFERENCES restaurants(id) ON DELETE RESTRICT,
+                name varchar(160) NOT NULL CHECK (char_length(trim(name)) BETWEEN 2 AND 160),
+                phone varchar(20) NOT NULL, address_line varchar(255) NOT NULL CHECK (char_length(trim(address_line)) BETWEEN 5 AND 255),
+                ward varchar(100) NOT NULL CHECK (char_length(trim(ward)) >= 1), district varchar(100) NOT NULL CHECK (char_length(trim(district)) >= 1), city varchar(100) NOT NULL CHECK (char_length(trim(city)) >= 1),
+                latitude numeric(9,6) NOT NULL CHECK (latitude BETWEEN -90 AND 90), longitude numeric(9,6) NOT NULL CHECK (longitude BETWEEN -180 AND 180),
+                status varchar(20) NOT NULL CHECK (status IN ('draft','open','closed','suspended')),
+                opens_at time, closes_at time,
+                created_at timestamptz NOT NULL, updated_at timestamptz NOT NULL, deleted_at timestamptz,
+                CHECK ((opens_at IS NULL AND closes_at IS NULL) OR (opens_at IS NOT NULL AND closes_at IS NOT NULL))
+            );
+            CREATE UNIQUE INDEX ux_branch_name_per_restaurant ON restaurant_branches(restaurant_id, lower(name)) WHERE deleted_at IS NULL;
+            CREATE INDEX ix_branches_restaurant_status ON restaurant_branches(restaurant_id,status) WHERE deleted_at IS NULL;
+            CREATE TABLE restaurant_staff (
+                id varchar(21) PRIMARY KEY,
+                restaurant_id varchar(21) NOT NULL REFERENCES restaurants(id) ON DELETE RESTRICT,
+                user_id varchar(21) NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+                role varchar(30) NOT NULL CHECK (role IN ('manager','staff')),
+                status varchar(20) NOT NULL CHECK (status IN ('active','inactive')),
+                created_at timestamptz NOT NULL, UNIQUE (restaurant_id, user_id, role)
+            );
+            CREATE INDEX ix_restaurant_staff_user_id ON restaurant_staff(user_id, status);
+            CREATE TABLE driver_profiles (
+                id varchar(21) PRIMARY KEY,
+                user_id varchar(21) NOT NULL UNIQUE REFERENCES users(id) ON DELETE RESTRICT,
+                vehicle_type varchar(30) NOT NULL CHECK (vehicle_type IN ('motorbike','bicycle','car','other')),
+                license_number varchar(50) NOT NULL,
+                status varchar(20) NOT NULL CHECK (status IN ('pending','active','suspended','inactive')),
+                current_latitude numeric(9,6), current_longitude numeric(9,6),
+                created_at timestamptz NOT NULL, updated_at timestamptz NOT NULL,
+                CHECK ((current_latitude IS NULL AND current_longitude IS NULL) OR (current_latitude IS NOT NULL AND current_longitude IS NOT NULL)),
+                CHECK (current_latitude IS NULL OR current_latitude BETWEEN -90 AND 90),
+                CHECK (current_longitude IS NULL OR current_longitude BETWEEN -180 AND 180)
+            );
+            CREATE UNIQUE INDEX ux_driver_license ON driver_profiles(lower(license_number));
+            CREATE TABLE driver_availability (
+                id varchar(21) PRIMARY KEY,
+                driver_id varchar(21) NOT NULL UNIQUE REFERENCES driver_profiles(id) ON DELETE RESTRICT,
+                status varchar(20) NOT NULL CHECK (status IN ('offline','online','busy')),
+                last_seen_at timestamptz, updated_at timestamptz NOT NULL
+            );
+            CREATE TABLE menu_categories (
+                id varchar(21) PRIMARY KEY,
+                branch_id varchar(21) NOT NULL REFERENCES restaurant_branches(id) ON DELETE RESTRICT,
+                name varchar(120) NOT NULL CHECK (char_length(trim(name)) BETWEEN 1 AND 120),
+                display_order integer NOT NULL CHECK (display_order >= 0),
+                status varchar(20) NOT NULL CHECK (status IN ('active','inactive')),
+                created_at timestamptz NOT NULL, updated_at timestamptz NOT NULL, deleted_at timestamptz
+            );
+            CREATE UNIQUE INDEX ux_category_name_per_branch ON menu_categories(branch_id, lower(name)) WHERE deleted_at IS NULL;
+            CREATE INDEX ix_menu_categories_branch ON menu_categories(branch_id, status, display_order);
+            CREATE TABLE menu_items (
+                id varchar(21) PRIMARY KEY,
+                branch_id varchar(21) NOT NULL REFERENCES restaurant_branches(id) ON DELETE RESTRICT,
+                category_id varchar(21) NOT NULL REFERENCES menu_categories(id) ON DELETE RESTRICT,
+                name varchar(160) NOT NULL CHECK (char_length(trim(name)) BETWEEN 2 AND 160),
+                description varchar(2000), price numeric(12,2) NOT NULL CHECK (price >= 0),
+                stock_status varchar(20) NOT NULL CHECK (stock_status IN ('available','unavailable','out_of_stock')),
+                status varchar(20) NOT NULL CHECK (status IN ('active','inactive')),
+                created_at timestamptz NOT NULL, updated_at timestamptz NOT NULL, deleted_at timestamptz
+            );
+            CREATE INDEX ix_menu_items_branch_status ON menu_items(branch_id,status,stock_status) WHERE deleted_at IS NULL;
+            CREATE INDEX ix_menu_items_category ON menu_items(category_id,status) WHERE deleted_at IS NULL;
+            CREATE TABLE carts (
+                id varchar(21) PRIMARY KEY,
+                customer_id varchar(21) NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+                branch_id varchar(21) NOT NULL REFERENCES restaurant_branches(id) ON DELETE RESTRICT,
+                status varchar(20) NOT NULL CHECK (status IN ('active','checked_out','abandoned')),
+                expires_at timestamptz, created_at timestamptz NOT NULL, updated_at timestamptz NOT NULL
+            );
+            CREATE UNIQUE INDEX ux_one_active_cart_per_customer_branch ON carts(customer_id,branch_id) WHERE status='active';
+            CREATE INDEX ix_carts_customer_status ON carts(customer_id,status,updated_at DESC);
+            CREATE INDEX ix_carts_branch_id ON carts(branch_id);
+            CREATE TABLE cart_items (
+                id varchar(21) PRIMARY KEY,
+                cart_id varchar(21) NOT NULL REFERENCES carts(id) ON DELETE CASCADE,
+                menu_item_id varchar(21) NOT NULL REFERENCES menu_items(id) ON DELETE RESTRICT,
+                quantity integer NOT NULL CHECK (quantity BETWEEN 1 AND 99),
+                unit_price_snapshot numeric(12,2) NOT NULL CHECK (unit_price_snapshot >= 0),
+                created_at timestamptz NOT NULL, updated_at timestamptz NOT NULL, UNIQUE (cart_id, menu_item_id)
+            );
+            CREATE INDEX ix_cart_items_menu_item ON cart_items(menu_item_id);
+            CREATE TABLE promotions (
+                id varchar(21) PRIMARY KEY,
+                restaurant_id varchar(21) REFERENCES restaurants(id) ON DELETE RESTRICT,
+                code varchar(60) NOT NULL, name varchar(160) NOT NULL,
+                type varchar(20) NOT NULL CHECK (type IN ('percent','fixed','free_delivery')),
+                value numeric(12,2) NOT NULL CHECK (value >= 0),
+                min_order_amount numeric(12,2) NOT NULL DEFAULT 0 CHECK (min_order_amount >= 0),
+                max_discount_amount numeric(12,2) CHECK (max_discount_amount IS NULL OR max_discount_amount >= 0),
+                usage_limit integer CHECK (usage_limit IS NULL OR usage_limit >= 0),
+                per_user_limit integer NOT NULL DEFAULT 1 CHECK (per_user_limit >= 1),
+                starts_at timestamptz NOT NULL, ends_at timestamptz NOT NULL,
+                status varchar(20) NOT NULL CHECK (status IN ('draft','active','paused','expired')),
+                created_at timestamptz NOT NULL, updated_at timestamptz NOT NULL,
+                CHECK (ends_at > starts_at), CHECK (type <> 'percent' OR value <= 100),
+                CHECK (type = 'percent' OR max_discount_amount IS NULL OR max_discount_amount >= 0)
+            );
+            CREATE UNIQUE INDEX ux_promotion_code_scope ON promotions(COALESCE(restaurant_id,''), lower(code));
+            CREATE INDEX ix_promotions_active_window ON promotions(status,starts_at,ends_at);
+            CREATE INDEX ix_promotions_restaurant_id ON promotions(restaurant_id);
+            CREATE TABLE orders (
+                id varchar(21) PRIMARY KEY,
+                order_number varchar(40) NOT NULL UNIQUE,
+                customer_id varchar(21) NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+                branch_id varchar(21) NOT NULL REFERENCES restaurant_branches(id) ON DELETE RESTRICT,
+                status varchar(20) NOT NULL CHECK (status IN ('pending','confirmed','preparing','ready','picked_up','delivering','delivered','cancelled','rejected')),
+                subtotal numeric(12,2) NOT NULL CHECK (subtotal >= 0), discount_amount numeric(12,2) NOT NULL DEFAULT 0 CHECK (discount_amount >= 0),
+                delivery_fee numeric(12,2) NOT NULL DEFAULT 0 CHECK (delivery_fee >= 0), tax_amount numeric(12,2) NOT NULL DEFAULT 0 CHECK (tax_amount >= 0), total_amount numeric(12,2) NOT NULL CHECK (total_amount >= 0),
+                promotion_id varchar(21) REFERENCES promotions(id) ON DELETE RESTRICT,
+                promotion_code_snapshot varchar(60), promotion_discount_snapshot numeric(12,2) NOT NULL DEFAULT 0 CHECK (promotion_discount_snapshot >= 0),
+                recipient_name_snapshot varchar(120) NOT NULL, recipient_phone_snapshot varchar(20) NOT NULL, address_line_snapshot varchar(255) NOT NULL,
+                ward_snapshot varchar(100) NOT NULL, district_snapshot varchar(100) NOT NULL, city_snapshot varchar(100) NOT NULL,
+                latitude_snapshot numeric(9,6), longitude_snapshot numeric(9,6),
+                placed_at timestamptz NOT NULL, confirmed_at timestamptz, preparing_at timestamptz, ready_at timestamptz, picked_up_at timestamptz, delivered_at timestamptz, cancelled_at timestamptz, cancel_reason varchar(500),
+                created_at timestamptz NOT NULL, updated_at timestamptz NOT NULL,
+                CHECK ((latitude_snapshot IS NULL AND longitude_snapshot IS NULL) OR (latitude_snapshot IS NOT NULL AND longitude_snapshot IS NOT NULL)),
+                CHECK (latitude_snapshot IS NULL OR latitude_snapshot BETWEEN -90 AND 90), CHECK (longitude_snapshot IS NULL OR longitude_snapshot BETWEEN -180 AND 180),
+                CHECK (discount_amount <= subtotal), CHECK (total_amount = subtotal - discount_amount + delivery_fee + tax_amount),
+                CHECK (confirmed_at IS NULL OR confirmed_at >= placed_at), CHECK (preparing_at IS NULL OR confirmed_at IS NOT NULL AND preparing_at >= confirmed_at),
+                CHECK (ready_at IS NULL OR preparing_at IS NOT NULL AND ready_at >= preparing_at), CHECK (picked_up_at IS NULL OR ready_at IS NOT NULL AND picked_up_at >= ready_at),
+                CHECK (delivered_at IS NULL OR picked_up_at IS NOT NULL AND delivered_at >= picked_up_at), CHECK (cancelled_at IS NULL OR cancelled_at >= placed_at),
+                CHECK (status <> 'cancelled' OR (cancelled_at IS NOT NULL AND cancel_reason IS NOT NULL)), CHECK (status <> 'delivered' OR delivered_at IS NOT NULL)
+            );
+            CREATE INDEX ix_orders_customer_created ON orders(customer_id,created_at DESC);
+            CREATE INDEX ix_orders_branch_status_created ON orders(branch_id,status,created_at DESC);
+            CREATE INDEX ix_orders_promotion_id ON orders(promotion_id);
+            CREATE TABLE order_items (
+                id varchar(21) PRIMARY KEY,
+                order_id varchar(21) NOT NULL REFERENCES orders(id) ON DELETE RESTRICT,
+                menu_item_id varchar(21) NOT NULL REFERENCES menu_items(id) ON DELETE RESTRICT,
+                item_name_snapshot varchar(160) NOT NULL, unit_price numeric(12,2) NOT NULL CHECK (unit_price >= 0),
+                quantity integer NOT NULL CHECK (quantity BETWEEN 1 AND 99), line_total numeric(12,2) NOT NULL CHECK (line_total >= 0),
+                created_at timestamptz NOT NULL, CHECK (line_total = unit_price * quantity)
+            );
+            CREATE INDEX ix_order_items_order ON order_items(order_id);
+            CREATE INDEX ix_order_items_menu_item ON order_items(menu_item_id);
+            CREATE TABLE payments (
+                id varchar(21) PRIMARY KEY,
+                order_id varchar(21) NOT NULL REFERENCES orders(id) ON DELETE RESTRICT,
+                method varchar(30) NOT NULL CHECK (method IN ('cash_on_delivery','card','bank_transfer','e_wallet')),
+                status varchar(30) NOT NULL CHECK (status IN ('pending','processing','paid','failed','partially_refunded','refunded','cancelled')),
+                amount numeric(12,2) NOT NULL CHECK (amount > 0), provider varchar(60), provider_payment_id varchar(255), paid_at timestamptz,
+                created_at timestamptz NOT NULL, updated_at timestamptz NOT NULL
+            );
+            CREATE UNIQUE INDEX ux_active_payment_per_order ON payments(order_id) WHERE status IN ('pending','processing','paid','partially_refunded');
+            CREATE UNIQUE INDEX ux_provider_payment_id ON payments(provider,provider_payment_id) WHERE provider IS NOT NULL AND provider_payment_id IS NOT NULL;
+            CREATE INDEX ix_payments_order_status ON payments(order_id,status);
+            CREATE TABLE payment_transactions (
+                id varchar(21) PRIMARY KEY,
+                payment_id varchar(21) NOT NULL REFERENCES payments(id) ON DELETE RESTRICT,
+                provider_event_id varchar(255) NOT NULL UNIQUE, provider_transaction_id varchar(255),
+                transaction_type varchar(30) NOT NULL CHECK (transaction_type IN ('authorize','capture','sale','refund','void','failure')),
+                amount numeric(12,2) NOT NULL CHECK (amount > 0), status varchar(20) NOT NULL CHECK (status IN ('received','processed','ignored','failed')),
+                raw_reference jsonb, created_at timestamptz NOT NULL
+            );
+            CREATE INDEX ix_payment_transactions_payment ON payment_transactions(payment_id,created_at DESC);
+            CREATE TABLE refunds (
+                id varchar(21) PRIMARY KEY,
+                payment_id varchar(21) NOT NULL REFERENCES payments(id) ON DELETE RESTRICT,
+                order_id varchar(21) NOT NULL REFERENCES orders(id) ON DELETE RESTRICT,
+                amount numeric(12,2) NOT NULL CHECK (amount > 0), reason varchar(500) NOT NULL,
+                status varchar(20) NOT NULL CHECK (status IN ('pending','processing','succeeded','failed','cancelled')),
+                provider_ref varchar(255), created_at timestamptz NOT NULL, updated_at timestamptz NOT NULL
+            );
+            CREATE UNIQUE INDEX ux_refund_provider_ref ON refunds(provider_ref) WHERE provider_ref IS NOT NULL;
+            CREATE INDEX ix_refunds_order ON refunds(order_id,created_at DESC);
+            CREATE INDEX ix_refunds_payment_id ON refunds(payment_id);
+            CREATE TABLE deliveries (
+                id varchar(21) PRIMARY KEY,
+                order_id varchar(21) NOT NULL UNIQUE REFERENCES orders(id) ON DELETE RESTRICT,
+                status varchar(20) NOT NULL CHECK (status IN ('pending','assigned','picked_up','delivering','delivered','failed','cancelled')),
+                pickup_latitude numeric(9,6) NOT NULL CHECK (pickup_latitude BETWEEN -90 AND 90), pickup_longitude numeric(9,6) NOT NULL CHECK (pickup_longitude BETWEEN -180 AND 180),
+                dropoff_latitude numeric(9,6), dropoff_longitude numeric(9,6), assigned_at timestamptz, picked_up_at timestamptz, delivering_at timestamptz, delivered_at timestamptz, failed_at timestamptz, cancelled_at timestamptz, failure_reason varchar(500),
+                created_at timestamptz NOT NULL, updated_at timestamptz NOT NULL,
+                CHECK ((dropoff_latitude IS NULL AND dropoff_longitude IS NULL) OR (dropoff_latitude IS NOT NULL AND dropoff_longitude IS NOT NULL)),
+                CHECK (dropoff_latitude IS NULL OR dropoff_latitude BETWEEN -90 AND 90), CHECK (dropoff_longitude IS NULL OR dropoff_longitude BETWEEN -180 AND 180)
+            );
+            CREATE INDEX ix_deliveries_status_created ON deliveries(status,created_at);
+            CREATE TABLE delivery_assignments (
+                id varchar(21) PRIMARY KEY,
+                delivery_id varchar(21) NOT NULL REFERENCES deliveries(id) ON DELETE RESTRICT,
+                driver_id varchar(21) NOT NULL REFERENCES driver_profiles(id) ON DELETE RESTRICT,
+                status varchar(20) NOT NULL CHECK (status IN ('offered','accepted','rejected','expired','cancelled','completed')),
+                offered_at timestamptz NOT NULL, responded_at timestamptz, created_at timestamptz NOT NULL, updated_at timestamptz NOT NULL
+            );
+            CREATE UNIQUE INDEX ux_one_active_accepted_driver_per_delivery ON delivery_assignments(delivery_id) WHERE status='accepted';
+            CREATE INDEX ix_assignments_driver_status ON delivery_assignments(driver_id,status,created_at DESC);
+            CREATE INDEX ix_delivery_assignments_delivery ON delivery_assignments(delivery_id,created_at DESC);
+            CREATE TABLE driver_locations (
+                id varchar(21) PRIMARY KEY,
+                driver_id varchar(21) NOT NULL REFERENCES driver_profiles(id) ON DELETE RESTRICT,
+                delivery_id varchar(21) REFERENCES deliveries(id) ON DELETE RESTRICT,
+                latitude numeric(9,6) NOT NULL CHECK (latitude BETWEEN -90 AND 90), longitude numeric(9,6) NOT NULL CHECK (longitude BETWEEN -180 AND 180), recorded_at timestamptz NOT NULL
+            );
+            CREATE INDEX ix_driver_locations_delivery_time ON driver_locations(delivery_id,recorded_at DESC);
+            CREATE INDEX ix_driver_locations_driver_time ON driver_locations(driver_id,recorded_at DESC);
+            CREATE TABLE reviews (
+                id varchar(21) PRIMARY KEY,
+                order_id varchar(21) NOT NULL REFERENCES orders(id) ON DELETE RESTRICT,
+                customer_id varchar(21) NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+                restaurant_id varchar(21) NOT NULL REFERENCES restaurants(id) ON DELETE RESTRICT,
+                rating smallint NOT NULL CHECK (rating BETWEEN 1 AND 5), comment varchar(2000), status varchar(20) NOT NULL CHECK (status IN ('visible','hidden')),
+                created_at timestamptz NOT NULL, updated_at timestamptz NOT NULL, UNIQUE(order_id,customer_id)
+            );
+            CREATE INDEX ix_reviews_restaurant_created ON reviews(restaurant_id,created_at DESC);
+            CREATE INDEX ix_reviews_customer_created ON reviews(customer_id,created_at DESC);
+            CREATE TABLE devices (
+                id varchar(21) PRIMARY KEY,
+                user_id varchar(21) NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+                platform varchar(20) NOT NULL CHECK (platform IN ('ios','android','web')),
+                push_token varchar(500) NOT NULL UNIQUE, status varchar(20) NOT NULL CHECK (status IN ('active','inactive')),
+                last_seen_at timestamptz, created_at timestamptz NOT NULL, updated_at timestamptz NOT NULL
+            );
+            CREATE INDEX ix_devices_user_status ON devices(user_id,status);
+            CREATE TABLE notifications (
+                id varchar(21) PRIMARY KEY,
+                user_id varchar(21) NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+                type varchar(60) NOT NULL, title varchar(200) NOT NULL, body varchar(2000) NOT NULL, data_json jsonb, read_at timestamptz, created_at timestamptz NOT NULL
+            );
+            CREATE INDEX ix_notifications_user_read_created ON notifications(user_id,read_at,created_at DESC);
+            CREATE TABLE idempotency_keys (
+                id varchar(21) PRIMARY KEY,
+                user_id varchar(21) NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+                scope varchar(120) NOT NULL, idempotency_key varchar(120) NOT NULL, request_hash varchar(128) NOT NULL,
+                response_status integer, response_body jsonb, expires_at timestamptz NOT NULL, created_at timestamptz NOT NULL,
+                UNIQUE(user_id,scope,idempotency_key)
+            );
+            CREATE INDEX ix_idempotency_expiry ON idempotency_keys(expires_at);
+            CREATE TABLE outbox_messages (
+                id varchar(21) PRIMARY KEY, aggregate_type varchar(80) NOT NULL, aggregate_id varchar(21) NOT NULL,
+                event_type varchar(120) NOT NULL, payload_json jsonb NOT NULL, occurred_at timestamptz NOT NULL, published_at timestamptz,
+                retry_count integer NOT NULL DEFAULT 0 CHECK (retry_count >= 0), last_error varchar(2000)
+            );
+            CREATE INDEX ix_outbox_unpublished ON outbox_messages(occurred_at) WHERE published_at IS NULL;
+            CREATE TABLE audit_logs (
+                id varchar(21) PRIMARY KEY,
+                actor_user_id varchar(21) REFERENCES users(id) ON DELETE RESTRICT,
+                action varchar(120) NOT NULL, resource_type varchar(80) NOT NULL, resource_id varchar(21), before_json jsonb, after_json jsonb,
+                ip_address varchar(64), user_agent varchar(1000), created_at timestamptz NOT NULL
+            );
+            CREATE INDEX ix_audit_resource_time ON audit_logs(resource_type,resource_id,created_at DESC);
+            CREATE INDEX ix_audit_actor_time ON audit_logs(actor_user_id,created_at DESC);
+            DO $$
+            DECLARE table_name text;
+            BEGIN
+                FOREACH table_name IN ARRAY ARRAY[
+                    'roles','permissions','user_roles','role_permissions','refresh_tokens','customer_profiles',
+                    'addresses','restaurants','restaurant_branches','restaurant_staff','driver_profiles',
+                    'driver_availability','menu_categories','menu_items','carts','cart_items','promotions','orders',
+                    'order_items','payments','payment_transactions','refunds','deliveries','delivery_assignments',
+                    'driver_locations','reviews','devices','notifications','idempotency_keys','outbox_messages','audit_logs'
+                ] LOOP
+                    EXECUTE format(
+                        'ALTER TABLE %I ADD CONSTRAINT %I CHECK (id ~ ''^[A-Za-z0-9_-]{21}$'')',
+                        table_name,
+                        'ck_' || table_name || '_id_nanoid_21');
+                END LOOP;
+            END $$;
+            """);
+    }
+
+    protected override void Down(MigrationBuilder migrationBuilder)
+    {
+        migrationBuilder.Sql("""
+            DROP TABLE IF EXISTS audit_logs, outbox_messages, idempotency_keys, notifications, devices, reviews,
+                driver_locations, delivery_assignments, deliveries, refunds, payment_transactions, payments,
+                order_items, orders, promotions, cart_items, carts, menu_items, menu_categories,
+                driver_availability, driver_profiles, restaurant_staff, restaurant_branches, restaurants,
+                addresses, customer_profiles, refresh_tokens, role_permissions, user_roles, permissions, roles CASCADE;
+            """);
+    }
+}
