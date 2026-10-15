@@ -131,13 +131,16 @@ public sealed class RegisterEndpointTests
 
     private static WebApplicationFactory<Program> CreateFactory(RecordingStore store) =>
         new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
+        {
+            TestJwtConfiguration.Apply(builder);
             builder.ConfigureTestServices(services =>
             {
                 services.RemoveAll<ICustomerRegistrationStore>();
                 services.AddSingleton<ICustomerRegistrationStore>(store);
                 services.RemoveAll<IPasswordHashingService>();
                 services.AddSingleton<IPasswordHashingService, FakePasswordHashingService>();
-            }));
+            });
+        });
 
     private sealed class RecordingStore : ICustomerRegistrationStore
     {
