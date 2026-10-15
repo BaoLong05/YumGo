@@ -1,4 +1,6 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Npgsql;
 using Testcontainers.PostgreSql;
 using YumGo.Infrastructure.Persistence;
@@ -120,5 +122,37 @@ public sealed class FullSchemaPostgreSqlMigrationTests
 
         var exception = await Assert.ThrowsAsync<PostgresException>(() => command.ExecuteNonQueryAsync());
         Assert.Equal("ck_users_id_nanoid_21", exception.ConstraintName);
+    }
+
+    [Fact]
+    public async Task Rolling_back_customer_role_seed_preserves_a_preexisting_role_row()
+    {
+        await using var postgres = new PostgreSqlBuilder("postgres:17-alpine")
+            .WithDatabase("yumgo_role_seed_rollback_test")
+            .WithUsername("postgres")
+            .WithPassword(Guid.NewGuid().ToString("N"))
+            .Build();
+
+        await postgres.StartAsync();
+
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseNpgsql(postgres.GetConnectionString())
+            .Options;
+        await using var context = new ApplicationDbContext(options);
+        var migrator = context.GetService<IMigrator>();
+
+        await migrator.MigrateAsync("20261015030829_AddForeignKeyCoverageIndexes");
+        await context.Database.ExecuteSqlRawAsync("""
+            INSERT INTO roles (id, code, name, created_at)
+            VALUES ('customer_role_seed_01', 'customer', 'Pre-existing Customer', CURRENT_TIMESTAMP)
+            """);
+        await migrator.MigrateAsync();
+
+        await migrator.MigrateAsync("20261015030829_AddForeignKeyCoverageIndexes");
+
+        var roleName = await context.Database
+            .SqlQueryRaw<string>("SELECT name AS \"Value\" FROM roles WHERE id = 'customer_role_seed_01'")
+            .SingleAsync();
+        Assert.Equal("Pre-existing Customer", roleName);
     }
 }

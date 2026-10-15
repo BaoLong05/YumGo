@@ -20,14 +20,7 @@ namespace YumGo.Infrastructure.Persistence.Migrations
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.Sql("""
-                DELETE FROM roles
-                WHERE id = 'customer_role_seed_01'
-                  AND code = 'customer'
-                  AND NOT EXISTS (
-                      SELECT 1 FROM user_roles WHERE role_id = 'customer_role_seed_01'
-                  );
-                """);
+            // Keep this reference row: Up may have reused a pre-existing customer role.
         }
     }
 }
