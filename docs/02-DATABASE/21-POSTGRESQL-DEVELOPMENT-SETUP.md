@@ -28,10 +28,10 @@ volumes:
 Host=localhost;Port=5432;Database=yumgo;Username=yumgo;Password=yumgo_dev_password
 ```
 
-## EF Core rule
-Generate migrations only from reviewed model + configuration. Do not create a migration for placeholder entities.
+## Schema and migration ownership
+PostgreSQL is the database authority. The checked-in schema SQL is the canonical target specification; runtime schema changes are applied through the versioned migration chain. The commerce baseline is SQL-managed because the current EF model snapshot tracks only mapped entities (currently `User`). Do not scaffold a model migration for a commerce table that already exists in the SQL baseline.
 
-The initial commerce schema is currently created by the reviewed SQL in `FullCommerceSchema`, while the EF model snapshot describes only mapped entities (currently `User`). Do not blindly apply a newly scaffolded EF migration for a commerce table already created by that baseline: EF may emit duplicate `CREATE TABLE` operations. When adding EF mappings for baseline tables, reconcile the generated migration and model snapshot with the existing schema, and verify the resulting migration against a clean PostgreSQL database before applying it anywhere persistent. Keep the schema SQL, table specification, migration, and PostgreSQL integration tests in sync.
+For SQL-managed schema changes, author a reviewed migration and update the canonical SQL/specification plus PostgreSQL integration tests in the same change. For a future migration that maps an existing commerce table into EF, first reconcile the model snapshot with the live migration target so EF does not scaffold duplicate `CREATE TABLE` operations. `dotnet ef has-pending-model-changes` only checks mapped EF model state; it does not detect drift in raw-SQL-managed tables. Verify all changes against a disposable clean PostgreSQL database before applying them anywhere persistent.
 
 ## Transaction rule
 Use one database transaction when one business operation touches multiple aggregate-related rows and partial commit would break business invariants.

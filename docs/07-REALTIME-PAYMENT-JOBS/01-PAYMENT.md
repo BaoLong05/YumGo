@@ -26,6 +26,7 @@ Verify → dedupe → reconcile
 - `online` via one configured provider adapter
 
 The API contract does not expose provider-specific fields to the domain.
+Version 1 configures one provider at a time; the current database therefore uses globally unique provider event/transaction IDs. Supporting simultaneous providers requires provider-scoped event and transaction uniqueness before rollout.
 
 ## 8.3 Payment intent
 

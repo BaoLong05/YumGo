@@ -30,6 +30,7 @@ public sealed class FullSchemaPostgreSqlMigrationTests
         var appliedMigrations = await context.Database.GetAppliedMigrationsAsync();
         Assert.Contains("20261007090000_FullCommerceSchema", appliedMigrations);
         Assert.Contains("20261007093504_AlignUserUniquenessWithDatabaseSpec", appliedMigrations);
+        Assert.Contains("20261015120000_AlignPromotionAndPaymentTransactionConstraints", appliedMigrations);
 
         var customerRoleCount = await context.Database
             .SqlQueryRaw<int>("SELECT count(*)::int AS \"Value\" FROM roles WHERE code = 'customer'")

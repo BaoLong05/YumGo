@@ -22,6 +22,8 @@ Cross-field: disabled/suspended users cannot create orders, refresh sessions or 
 | full_name | varchar(120) | NO | trimmed, 2..120 chars |
 | date_of_birth | date | YES | not future |
 | avatar_url | varchar(1000) | YES | http/https only |
+| created_at | timestamptz | NO | UTC |
+| updated_at | timestamptz | NO | UTC |
 
 ## 3. `addresses`
 | Field | Type | Null | Validation |
@@ -84,8 +86,8 @@ Rule: a restaurant staff user can only manage branches belonging to that restaur
 Vehicle type is enum-like check. Coordinates must be all-null or both non-null.
 
 ## 8. `driver_availability`
-`id`, `driver_id`, `status(offline/online/busy)`, `last_seen_at`, timestamps.
-Unique active row per driver.
+`id`, `driver_id` (unique), `status(offline/online/busy)`, `last_seen_at`, `updated_at`.
+One current-state row per driver; this table is not an availability history.
 
 ## 9. `menu_categories`
 `id`, `branch_id`, `name`, `display_order`, `status(active/inactive)`, timestamps, `deleted_at`.
@@ -117,7 +119,7 @@ Validation: quantity 1..99, unit price >= 0. Cross-table: item branch must equal
 
 ## 13. `promotions`
 `id`, `restaurant_id nullable`, `code`, `name`, `type(percent/fixed/free_delivery)`, `value`, `min_order_amount`, `max_discount_amount`, `usage_limit`, `per_user_limit`, `starts_at`, `ends_at`, `status`, timestamps.
-Cross-field: `ends_at > starts_at`; percent value 0..100; fixed value >=0; max discount only for percent/fixed.
+Unique code is case-insensitive within its scope: global promotions share the global scope; restaurant promotions are scoped to their restaurant. Cross-field: `ends_at > starts_at`; percent value 0..100; fixed value >=0; max discount only for percent/fixed. PostgreSQL enforces the max-discount type rule with `ck_promotions_max_discount_type`.
 
 ## 14. `orders`
 Key fields:
@@ -139,8 +141,8 @@ Check: `line_total = unit_price * quantity`.
 Cross-field: payment amount must equal order total unless the method supports partial/adjustment explicitly.
 
 ## 17. `payment_transactions`
-`id`, `payment_id`, `provider_transaction_id`, `transaction_type`, `amount`, `status`, `raw_reference`, `created_at`.
-Unique provider transaction id.
+`id`, `payment_id`, `provider_event_id`, `provider_transaction_id`, `transaction_type`, `amount`, `status`, `raw_reference`, `created_at`.
+`provider_event_id` is globally unique and `provider_transaction_id` is globally unique when non-null. This matches v1's single configured payment provider. If simultaneous multi-provider processing is introduced, provider-scoped uniqueness must be designed before enabling it.
 
 ## 18. `refunds`
 `id`, `payment_id`, `order_id`, `amount`, `reason`, `status`, `provider_ref`, timestamps.
@@ -151,7 +153,7 @@ Check: refund amount > 0 and cumulative successful refunds <= successful paid am
 Cross-table: dropoff matches order snapshot coordinates when available.
 
 ## 20. `delivery_assignments`
-`id`, `delivery_id`, `driver_id`, `status(offered/accepted/rejected/cancelled/completed)`, `offered_at`, `responded_at`, timestamps.
+`id`, `delivery_id`, `driver_id`, `status(offered/accepted/rejected/expired/cancelled/completed)`, `offered_at`, `responded_at`, timestamps.
 Only one active accepted assignment per delivery.
 
 ## 21. `driver_locations`
@@ -164,17 +166,18 @@ Unique `(order_id,customer_id)`.
 Business rule: only delivered/completed orders may be reviewed.
 
 ## 23. `devices`
-`id`, `user_id`, `platform`, `push_token`, `status`, `last_seen_at`, unique active token.
+`id`, `user_id`, `platform`, `push_token`, `status`, `last_seen_at`, `created_at`, `updated_at`.
+Unique active token: `push_token` is unique among rows where `status = 'active'`; inactive historical rows may retain a token.
 
 ## 24. `notifications`
 `id`, `user_id`, `type`, `title`, `body`, `data_json`, `read_at`, `created_at`.
 No sensitive secrets in `data_json`.
 
 ## 25. `roles`, `permissions`, `user_roles`, `role_permissions`
-All IDs NanoID. Unique role name, unique permission code, unique join pairs.
+All IDs NanoID. Unique role code, unique permission code, unique join pairs.
 
 ## 26. `refresh_tokens`
-`id`, `user_id`, `token_hash`, `expires_at`, `revoked_at`, `replaced_by_id`, timestamps.
+`id`, `user_id`, `token_hash`, `expires_at`, `revoked_at`, `replaced_by_id`, `created_at`.
 Store hash, never plaintext refresh token.
 
 ## 27. `idempotency_keys`
