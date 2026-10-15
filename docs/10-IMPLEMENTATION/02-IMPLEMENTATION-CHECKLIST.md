@@ -12,7 +12,7 @@
 - [x] UTC timestamptz.
 - [x] Transaction boundaries defined in `02-DATABASE/04-CONSTRAINTS.md`.
 
-Baseline migration currently creates 32 application tables. PostgreSQL migration smoke validation ran against an isolated local PostgreSQL 17 container; it does not certify business-layer transaction workflows.
+Baseline migration currently creates 32 application tables. `FullSchemaPostgreSqlMigrationTests` applies all migrations to a disposable PostgreSQL 17 Testcontainers instance and verifies 32 application tables, 32 `varchar(21)` ID columns, 43 foreign keys whose full column sets are covered by valid non-partial leading index keys, 132 check constraints, and rejection of a malformed NanoID. This validates schema application/integrity only; it does not certify business-layer transaction workflows or migrate the shared local `yumgo` database.
 
 ## Gate B — Validation
 - [ ] Every request field has type/length/range validation.

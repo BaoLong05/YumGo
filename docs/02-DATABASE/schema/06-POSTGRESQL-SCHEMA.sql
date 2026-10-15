@@ -131,6 +131,7 @@ CREATE TABLE restaurant_branches (
 );
 CREATE UNIQUE INDEX ux_branch_name_per_restaurant ON restaurant_branches(restaurant_id, lower(name)) WHERE deleted_at IS NULL;
 CREATE INDEX ix_branches_restaurant_status ON restaurant_branches(restaurant_id,status) WHERE deleted_at IS NULL;
+CREATE INDEX ix_branches_restaurant_id_fk ON restaurant_branches(restaurant_id);
 
 CREATE TABLE restaurant_staff (
     id varchar(21) PRIMARY KEY,
@@ -195,6 +196,8 @@ CREATE TABLE menu_items (
 );
 CREATE INDEX ix_menu_items_branch_status ON menu_items(branch_id,status,stock_status) WHERE deleted_at IS NULL;
 CREATE INDEX ix_menu_items_category ON menu_items(category_id,status) WHERE deleted_at IS NULL;
+CREATE INDEX ix_menu_items_branch_id_fk ON menu_items(branch_id);
+CREATE INDEX ix_menu_items_category_id_fk ON menu_items(category_id);
 -- category.branch_id = menu_items.branch_id is an application/domain invariant.
 
 CREATE TABLE carts (
