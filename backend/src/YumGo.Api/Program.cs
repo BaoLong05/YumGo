@@ -43,11 +43,13 @@ builder.Services.AddScoped<RefreshSessionHandler>();
 builder.Services.AddScoped<LogoutSessionHandler>();
 builder.Services.AddScoped<CustomerAddressHandler>();
 builder.Services.AddScoped<RestaurantBranchHandler>();
+builder.Services.AddScoped<RestaurantDiscoveryHandler>();
 builder.Services.AddScoped<RestaurantWorkflowHandler>();
 builder.Services.AddScoped<RestaurantMenuHandler>();
 builder.Services.AddScoped<IAuthenticationStore, EfAuthenticationStore>();
 builder.Services.AddScoped<ICustomerAddressStore, EfCustomerAddressStore>();
 builder.Services.AddScoped<IRestaurantBranchStore, EfRestaurantBranchStore>();
+builder.Services.AddScoped<IRestaurantDiscoveryStore, EfRestaurantDiscoveryStore>();
 builder.Services.AddScoped<IRestaurantWorkflowStore, EfRestaurantWorkflowStore>();
 builder.Services.AddScoped<IRestaurantMenuStore, EfRestaurantMenuStore>();
 builder.Services.AddScoped<IGoogleGeocodingQuota, PostgresGoogleGeocodingQuotaStore>();
@@ -165,6 +167,7 @@ app.UseAuthorization();
 app.UseRateLimiter();
 
 app.MapHealthChecks("/health");
+app.MapRestaurantDiscoveryEndpoints();
 app.MapPost("/api/v1/auth/register", async (
     RegisterCustomerRequest request,
     RegisterCustomerHandler handler,
