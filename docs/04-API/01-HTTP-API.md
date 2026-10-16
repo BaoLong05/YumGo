@@ -129,6 +129,10 @@ Query parameters for `/restaurants`:
 
 The server must clamp limits and reject invalid cursor values.
 
+The public discovery API currently implements `q`, exact case-insensitive `city`/`district`, `openNow=true`, `categoryId`, opaque `cursor`, and `limit` (default 20, max 50). Results include only active restaurants with open, non-deleted branches; pending, suspended, closed, and deleted resources are not exposed. Pagination is stable by branch `created_at DESC, id ASC`. `openNow=true` additionally checks the configured same-day opening interval against UTC; branches without configured hours are treated as open when their status is `open`.
+
+`GET /restaurants/{restaurantId}`, `GET /restaurants/{restaurantId}/branches`, and `GET /branches/{branchId}` are public and return active restaurants/open branches only; malformed NanoIDs return `422`, hidden/missing resources return `404`. `GET /branches/{branchId}/menu` returns active categories and only active, available, non-deleted items; an unavailable or hidden branch returns `404`. Public menu caching and `latitude`/`longitude`/`radiusKm` search and distance/rating/popular sorting are not implemented in this slice; do not send those query parameters expecting them to affect results.
+
 ## 6.5 Cart
 
 | Method | Route |

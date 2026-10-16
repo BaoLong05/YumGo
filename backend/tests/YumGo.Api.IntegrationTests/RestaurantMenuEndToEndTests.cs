@@ -310,6 +310,95 @@ public sealed class RestaurantMenuEndToEndTests
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
     }
 
+    [Fact]
+    public async Task Public_branch_menu_returns_only_published_categories_and_orderable_items()
+    {
+        await using var postgres = await StartDatabaseAsync();
+        var signingKey = TestJwtConfiguration.CreateSigningKey();
+        using var factory = CreateFactory(postgres, signingKey);
+        await using var scope = factory.Services.CreateAsyncScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        await dbContext.Database.MigrateAsync();
+        var ownerId = NanoId.New().Value;
+        var restaurantId = NanoId.New().Value;
+        var branchId = NanoId.New().Value;
+        await SeedOwnerBranchAsync(dbContext, ownerId, NanoId.New().Value, restaurantId, branchId);
+        var categoryId = NanoId.New().Value;
+        var itemId = NanoId.New().Value;
+        var now = DateTimeOffset.UtcNow;
+        await dbContext.Database.ExecuteSqlInterpolatedAsync($"""
+            INSERT INTO menu_categories (id, branch_id, name, display_order, status, created_at, updated_at)
+            VALUES ({categoryId}, {branchId}, 'Meals', 0, 'active', {now}, {now})
+            """);
+        await dbContext.Database.ExecuteSqlInterpolatedAsync($"""
+            INSERT INTO menu_items (id, branch_id, category_id, name, price, stock_status, status, created_at, updated_at)
+            VALUES ({itemId}, {branchId}, {categoryId}, 'Rice bowl', 10.00, 'available', 'active', {now}, {now}),
+                   ({NanoId.New().Value}, {branchId}, {categoryId}, 'Sold out', 11.00, 'out_of_stock', 'active', {now}, {now}),
+                   ({NanoId.New().Value}, {branchId}, {categoryId}, 'Hidden', 12.00, 'available', 'inactive', {now}, {now})
+            """);
+
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions { BaseAddress = new Uri("https://localhost") });
+        using var response = await client.GetAsync($"/api/v1/branches/{branchId}/menu");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        using var body = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync());
+        var categories = body.RootElement.GetProperty("data").GetProperty("categories");
+        Assert.Single(categories.EnumerateArray());
+        var items = categories[0].GetProperty("items");
+        Assert.Single(items.EnumerateArray());
+        Assert.Equal(itemId, items[0].GetProperty("id").GetString());
+    }
+
+    [Fact]
+    public async Task Public_discovery_lists_only_active_restaurants_and_open_branches()
+    {
+        await using var postgres = await StartDatabaseAsync();
+        var signingKey = TestJwtConfiguration.CreateSigningKey();
+        using var factory = CreateFactory(postgres, signingKey);
+        await using var scope = factory.Services.CreateAsyncScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        await dbContext.Database.MigrateAsync();
+        var ownerId = NanoId.New().Value;
+        var restaurantId = NanoId.New().Value;
+        var branchId = NanoId.New().Value;
+        await SeedOwnerBranchAsync(dbContext, ownerId, NanoId.New().Value, restaurantId, branchId);
+        var pendingRestaurantId = NanoId.New().Value;
+        var pendingBranchId = NanoId.New().Value;
+        var now = DateTimeOffset.UtcNow;
+        await dbContext.Database.ExecuteSqlInterpolatedAsync($"""
+            INSERT INTO restaurants (id, owner_user_id, name, status, created_at, updated_at)
+            VALUES ({pendingRestaurantId}, {ownerId}, 'Pending Place', 'pending', {now}, {now})
+            """);
+        await dbContext.Database.ExecuteSqlInterpolatedAsync($"""
+            INSERT INTO restaurant_branches (
+                id, restaurant_id, name, phone, address_line, ward, district, city, latitude, longitude,
+                status, created_at, updated_at)
+            VALUES ({pendingBranchId}, {pendingRestaurantId}, 'Preview branch', '+84900000000', '42 Example Road',
+                    'Central', 'District 1', 'HCMC', 10.0, 106.0, 'open', {now}, {now})
+            """);
+
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions { BaseAddress = new Uri("https://localhost") });
+        using var response = await client.GetAsync("/api/v1/restaurants?city=HCMC&limit=1");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        using var body = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync());
+        var items = body.RootElement.GetProperty("data");
+        Assert.Single(items.EnumerateArray());
+        Assert.Equal(restaurantId, items[0].GetProperty("id").GetString());
+        Assert.False(body.RootElement.GetProperty("meta").GetProperty("hasMore").GetBoolean());
+
+        using var invalidPage = await client.GetAsync("/api/v1/restaurants?limit=0");
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, invalidPage.StatusCode);
+        using var invalidCursor = await client.GetAsync("/api/v1/restaurants?cursor=not-a-cursor");
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, invalidCursor.StatusCode);
+        using var restaurant = await client.GetAsync($"/api/v1/restaurants/{restaurantId}");
+        Assert.Equal(HttpStatusCode.OK, restaurant.StatusCode);
+        using var branches = await client.GetAsync($"/api/v1/restaurants/{restaurantId}/branches");
+        Assert.Equal(HttpStatusCode.OK, branches.StatusCode);
+        using var branch = await client.GetAsync($"/api/v1/branches/{branchId}");
+        Assert.Equal(HttpStatusCode.OK, branch.StatusCode);
+    }
+
     private static async Task<PostgreSqlContainer> StartDatabaseAsync()
     {
         var postgres = new PostgreSqlBuilder("postgres:17-alpine")

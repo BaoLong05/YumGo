@@ -2,6 +2,14 @@
 
 **Actor:** Customer
 
+## Implemented API slice
+- Public restaurant search supports text, city, district, `openNow`, active menu category, and cursor/limit filters.
+- Restaurant/branch detail and branch-list routes expose only active restaurants and open, non-deleted branches.
+- Public branch menu returns active categories and only active, available, non-deleted items.
+- Results use a deterministic cursor; limit defaults to 20 and is bounded to 1..50.
+- The current schema has no timezone field, so `openNow` compares same-day opening hours with UTC. Branches without configured hours are treated as open when branch status is open.
+- Geospatial radius and distance/rating/popularity sorting and menu cache are explicitly pending; the routes do not interpret those API parameters yet.
+
 
 ### Inputs
 search, district/city, openNow, category, cursor, limit.
