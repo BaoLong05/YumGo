@@ -28,6 +28,34 @@ public sealed class RestaurantTests
     }
 
     [Fact]
+    public void Restoring_rejected_restaurant_preserves_its_review_status()
+    {
+        var now = DateTimeOffset.UtcNow;
+        var restaurant = Restaurant.Restore(NanoId.New(), NanoId.New(), "Pho House", null, "rejected", now, now);
+
+        Assert.Equal("rejected", restaurant.Status);
+    }
+
+    [Fact]
+    public void Pending_restaurant_can_be_approved_or_rejected_once()
+    {
+        var now = DateTimeOffset.UtcNow;
+        var pending = Restaurant.Create(NanoId.New(), NanoId.New(), "Pho House", null, now);
+
+        var approved = pending.Review(approve: true, now.AddMinutes(1));
+        var rejected = pending.Review(approve: false, now.AddMinutes(2));
+
+        Assert.Equal("active", approved.Status);
+        Assert.Equal(now.AddMinutes(1), approved.UpdatedAt);
+        Assert.Equal("rejected", rejected.Status);
+        Assert.Equal(now.AddMinutes(2), rejected.UpdatedAt);
+        Assert.Throws<InvalidOperationException>(() =>
+        {
+            _ = approved.Review(approve: false, now.AddMinutes(3));
+        });
+    }
+
+    [Fact]
     public void Branch_creation_requires_both_schedule_times_and_valid_coordinates()
     {
         Assert.Throws<ArgumentException>(() => RestaurantBranch.Create(NanoId.New(), NanoId.New(), "District 1",
@@ -52,5 +80,26 @@ public sealed class RestaurantTests
 
         Assert.Equal("open", branch.Status);
         Assert.Equal(updatedAt, branch.UpdatedAt);
+    }
+
+    [Fact]
+    public void Branch_visibility_can_be_opened_or_closed_but_not_changed_by_owner_when_suspended()
+    {
+        var now = DateTimeOffset.UtcNow;
+        var draft = RestaurantBranch.Create(NanoId.New(), NanoId.New(), "District 1", "+84912345678",
+            "12 Nguyen Hue", "Ben Nghe", "District 1", "HCMC", 10m, 106m, null, null, now);
+
+        var open = draft.SetVisibility(isOpen: true, now.AddMinutes(1));
+        var closed = open.SetVisibility(isOpen: false, now.AddMinutes(2));
+        var suspended = RestaurantBranch.Restore(draft.Id, draft.RestaurantId, draft.Name, draft.Phone.Value,
+            draft.AddressLine, draft.Ward, draft.District, draft.City, draft.Latitude, draft.Longitude,
+            "suspended", null, null, now, now);
+
+        Assert.Equal("open", open.Status);
+        Assert.Equal("closed", closed.Status);
+        Assert.Throws<InvalidOperationException>(() =>
+        {
+            _ = suspended.SetVisibility(isOpen: true, now.AddMinutes(3));
+        });
     }
 }

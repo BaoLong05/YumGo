@@ -67,6 +67,18 @@ public sealed class RestaurantBranch
             decimal.Round(longitude, 6, MidpointRounding.AwayFromZero), opensAt, closesAt, "draft", now, now);
     }
 
+    public RestaurantBranch SetVisibility(bool isOpen, DateTimeOffset now)
+    {
+        if (Status == "suspended")
+            throw new InvalidOperationException("A suspended branch cannot be published or closed by its owner.");
+
+        var targetStatus = isOpen ? "open" : "closed";
+        if (Status == targetStatus) return this;
+
+        return new RestaurantBranch(Id, RestaurantId, Name, Phone, AddressLine, Ward, District, City,
+            Latitude, Longitude, OpensAt, ClosesAt, targetStatus, CreatedAt, now);
+    }
+
     public static RestaurantBranch Restore(NanoId id, NanoId restaurantId, string name, string phone,
         string addressLine, string ward, string district, string city, decimal latitude, decimal longitude,
         string status, TimeOnly? opensAt, TimeOnly? closesAt, DateTimeOffset createdAt, DateTimeOffset updatedAt)

@@ -53,7 +53,7 @@ Cross-field: latitude and longitude must be both null or both non-null.
 | owner_user_id | varchar(21) | NO | FK users |
 | name | varchar(160) | NO | 2..160 |
 | description | varchar(2000) | YES | 0..2000 |
-| status | varchar(20) | NO | pending/active/suspended/closed |
+| status | varchar(20) | NO | pending/active/rejected/suspended/closed |
 | created_at | timestamptz | NO | UTC |
 | updated_at | timestamptz | NO | UTC |
 | deleted_at | timestamptz | YES | soft delete |
@@ -80,8 +80,9 @@ Cross-field: latitude and longitude must be both null or both non-null.
 Cross-field: `opens_at` and `closes_at` must be both null or both non-null. Overnight schedule must be represented explicitly if supported.
 
 ## 6. `restaurant_staff`
-`id`, `restaurant_id`, `user_id`, `role`, `status`, `created_at`.
-Unique: `(restaurant_id,user_id,role)`.
+`id`, `restaurant_id`, `user_id`, `role(manager/staff)`, `status(active/inactive)`, `created_at`.
+Unique: `(restaurant_id,user_id,role)`; the current schema retains one row per role and toggles `status` instead of deleting assignment history.
+Owner role replacement is a full-set operation: omitted roles become inactive, and an empty set removes every active assignment. Restaurant owners can assign only `manager` and `staff` roles to active, email-verified users. Staff assignments do not grant platform-wide roles.
 Rule: a restaurant staff user can only manage branches belonging to that restaurant.
 
 ## 7. `driver_profiles`
