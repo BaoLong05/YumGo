@@ -207,6 +207,14 @@ Required server-side sequence:
 
 Every route applies restaurant/branch resource scope.
 
+The branch-menu GET returns the restaurant operator's menu tree, including inactive categories and items. Every menu route requires an active, email-verified owner or active restaurant staff member (`manager`/`staff`); the actor is taken from the access token and membership is rechecked against PostgreSQL. Foreign or missing resources return `404`.
+
+`POST /restaurant/menu/categories` accepts `branchId`, `name` (1–120 characters) and non-negative `displayOrder`; new categories start `active`. `PATCH /restaurant/menu/categories/{id}` replaces `name`, `displayOrder`, and `status` (`active`/`inactive`). Category names are unique case-insensitively per branch. Category deletion is not exposed by this slice; if added later, follow F06's rule to block deletion while active items remain.
+
+`POST /restaurant/menu/items` accepts `branchId`, `categoryId`, `name` (2–160 characters), optional `description` (up to 2,000 characters), and `price` (0 through 9,999,999,999.99, at most two fractional digits). The category must be active and belong to the same branch. New items start with `status=active` and `stockStatus=available`. `PATCH /restaurant/menu/items/{id}` replaces category, name, description, price and `status`; an inactive item can only be published (`status=active`) under an active category. Existing active items remain editable if their category is later made inactive.
+
+`POST /restaurant/menu/items/{id}/sold-out` sets only `stockStatus=out_of_stock`; `/available` sets only `stockStatus=available`. Neither endpoint changes `status`. Reapplying the current stock status is a no-op without an additional audit row. Category/item mutations and their audit rows are transactional. Invalid fields return `422`; an inactive category conflict returns `409`. No notifications are emitted.
+
 ### Restaurant onboarding and branch setup
 
 | Method | Route | Behavior |
