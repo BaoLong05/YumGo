@@ -47,7 +47,7 @@ public sealed class FullSchemaPostgreSqlMigrationTests
                   AND table_name <> '__EFMigrationsHistory'
                 """)
             .SingleAsync();
-        Assert.Equal(32, applicationTableCount);
+        Assert.Equal(33, applicationTableCount);
 
         var correctlySizedIdColumns = await context.Database
             .SqlQueryRaw<int>("""
@@ -112,7 +112,7 @@ public sealed class FullSchemaPostgreSqlMigrationTests
                   AND connamespace = 'public'::regnamespace
                 """)
             .SingleAsync();
-        Assert.Equal(132, checkConstraintCount);
+        Assert.Equal(134, checkConstraintCount);
 
         var connection = context.Database.GetDbConnection();
         await connection.OpenAsync();

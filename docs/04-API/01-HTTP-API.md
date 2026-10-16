@@ -207,6 +207,17 @@ Required server-side sequence:
 
 Every route applies restaurant/branch resource scope.
 
+### Restaurant onboarding and branch setup
+
+| Method | Route | Behavior |
+|---|---|---|
+| GET | `/restaurant/restaurants` | List restaurants owned by the authenticated user |
+| POST | `/restaurant/restaurants` | Create a restaurant in `pending` status |
+| GET | `/restaurant/restaurants/{restaurantId}/branches` | List branches when the caller owns the restaurant |
+| POST | `/restaurant/restaurants/{restaurantId}/branches` | Create a required-coordinate branch in `draft` status |
+
+The owner ID is derived from the access token; request bodies cannot select another owner. Restaurant IDs are validated NanoID(21) values and ownership is checked in every branch query/mutation. A foreign or missing restaurant returns `404`. Invalid field, coordinate, phone, or paired-schedule values return `422`; this slice supports same-day schedules only (`opensAt < closesAt`). An existing branch name within the restaurant returns `409`. New branches are not automatically published. Restaurant and branch creation audit rows are inserted atomically with their resource rows; no notification is emitted. Staff-scoped operations are not available until staff assignment/authorization is implemented.
+
 ## 6.8 Driver operations
 
 | Method | Route |

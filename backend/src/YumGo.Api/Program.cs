@@ -11,8 +11,10 @@ using YumGo.Api.Endpoints;
 using YumGo.Api.Contracts.Identity;
 using YumGo.Application.Addresses;
 using YumGo.Application.Identity;
+using YumGo.Application.Restaurants;
 using YumGo.Infrastructure.Identity;
 using YumGo.Infrastructure.Addresses;
+using YumGo.Infrastructure.Restaurants;
 using YumGo.Infrastructure.Registration;
 using YumGo.Infrastructure.Security;
 
@@ -38,8 +40,10 @@ builder.Services.AddScoped<LoginHandler>();
 builder.Services.AddScoped<RefreshSessionHandler>();
 builder.Services.AddScoped<LogoutSessionHandler>();
 builder.Services.AddScoped<CustomerAddressHandler>();
+builder.Services.AddScoped<RestaurantBranchHandler>();
 builder.Services.AddScoped<IAuthenticationStore, EfAuthenticationStore>();
 builder.Services.AddScoped<ICustomerAddressStore, EfCustomerAddressStore>();
+builder.Services.AddScoped<IRestaurantBranchStore, EfRestaurantBranchStore>();
 builder.Services.AddScoped<IGoogleGeocodingQuota, PostgresGoogleGeocodingQuotaStore>();
 builder.Services.AddHttpClient<IAddressReverseGeocoder, GoogleAddressReverseGeocoder>(client =>
     client.Timeout = TimeSpan.FromSeconds(10));
@@ -309,6 +313,7 @@ app.MapGet("/api/v1/auth/me", (HttpContext context) =>
     .RequireAuthorization();
 
 app.MapCustomerAddressEndpoints();
+app.MapRestaurantManagementEndpoints();
 
 app.Run();
 
