@@ -44,6 +44,9 @@ Cross-field: disabled/suspended users cannot create orders, refresh sessions or 
 
 Cross-field: latitude and longitude must be both null or both non-null.
 
+## Google Geocoding usage meter
+`google_geocoding_usage(month_start date PRIMARY KEY, request_count integer, updated_at timestamptz)` tracks the app's monthly Google Geocoding reservations. `month_start` is the first UTC calendar day, and `request_count` is constrained to `0..9000`. Reservation is an atomic upsert so parallel API instances cannot pass the application cap.
+
 ## 4. `restaurants`
 | Field | Type | Null | Validation |
 | id | varchar(21) | NO | PK NanoID |
