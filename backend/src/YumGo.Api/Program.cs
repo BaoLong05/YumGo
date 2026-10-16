@@ -7,9 +7,12 @@ using System.Threading.RateLimiting;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.Extensions.Options;
 using YumGo.Api.Authentication;
+using YumGo.Api.Endpoints;
 using YumGo.Api.Contracts.Identity;
+using YumGo.Application.Addresses;
 using YumGo.Application.Identity;
 using YumGo.Infrastructure.Identity;
+using YumGo.Infrastructure.Addresses;
 using YumGo.Infrastructure.Registration;
 using YumGo.Infrastructure.Security;
 
@@ -34,7 +37,12 @@ builder.Services.AddScoped<RegisterCustomerHandler>();
 builder.Services.AddScoped<LoginHandler>();
 builder.Services.AddScoped<RefreshSessionHandler>();
 builder.Services.AddScoped<LogoutSessionHandler>();
+builder.Services.AddScoped<CustomerAddressHandler>();
 builder.Services.AddScoped<IAuthenticationStore, EfAuthenticationStore>();
+builder.Services.AddScoped<ICustomerAddressStore, EfCustomerAddressStore>();
+builder.Services.AddScoped<IGoogleGeocodingQuota, PostgresGoogleGeocodingQuotaStore>();
+builder.Services.AddHttpClient<IAddressReverseGeocoder, GoogleAddressReverseGeocoder>(client =>
+    client.Timeout = TimeSpan.FromSeconds(10));
 builder.Services.AddScoped<ICustomerRegistrationStore, EfCustomerRegistrationStore>();
 builder.Services.AddSingleton<IPasswordHashingService, AspNetPasswordHashingService>();
 builder.Services.AddSingleton<IRefreshTokenGenerator, CryptographicRefreshTokenGenerator>();
@@ -299,6 +307,8 @@ app.MapGet("/api/v1/auth/me", (HttpContext context) =>
     .WithName("GetCurrentIdentity")
     .WithTags("Authentication")
     .RequireAuthorization();
+
+app.MapCustomerAddressEndpoints();
 
 app.Run();
 

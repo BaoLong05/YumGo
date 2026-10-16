@@ -101,6 +101,12 @@ Access JWT lifetime defaults to 15 minutes (configurable from 1 to 60 minutes) a
 
 Resource ownership is mandatory.
 
+The address endpoints are authenticated and scoped to the user in the access token. Create requires `label`, `recipientName`, `recipientPhone`, `latitude`, and `longitude`; `isDefault` is optional (defaults to false). The API intentionally has no client-supplied street/city fields. The backend reverse-geocodes coordinates using Google Geocoding and returns the provider-derived address parts. `PATCH` may update label/recipient details without coordinates; changing location requires both coordinates and triggers a new reverse-geocode request.
+
+Create returns `201`, update/list return `200`, and delete/set-default return `204`. Invalid coordinates or an unresolved delivery address return `422`; an address not owned by the caller returns `404`; Google lookup failures return `503`; the protected monthly lookup ceiling returns `429`.
+
+Set `GoogleMaps__GeocodingApiKey` as a backend secret. `GoogleMaps__MonthlyRequestLimit` defaults to `9000` and accepts only `1..9000`. A PostgreSQL counter enforces this limit per UTC calendar month across app instances. Google currently lists a 10,000-request monthly free usage cap for the Geocoding SKU, but billing must still be enabled; the app's cap does not include usage from other projects on the same billing account. Configure Google Cloud quota and billing alerts separately before enabling the key.
+
 ## 6.4 Restaurant discovery
 
 | Method | Route |
