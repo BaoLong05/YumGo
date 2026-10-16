@@ -387,6 +387,11 @@ public sealed class RestaurantMenuEndToEndTests
         Assert.Equal(restaurantId, items[0].GetProperty("id").GetString());
         Assert.False(body.RootElement.GetProperty("meta").GetProperty("hasMore").GetBoolean());
 
+        using var wildcardCity = await client.GetAsync("/api/v1/restaurants?city=H%25");
+        Assert.Equal(HttpStatusCode.OK, wildcardCity.StatusCode);
+        using var wildcardBody = await JsonDocument.ParseAsync(await wildcardCity.Content.ReadAsStreamAsync());
+        Assert.Empty(wildcardBody.RootElement.GetProperty("data").EnumerateArray());
+
         using var invalidPage = await client.GetAsync("/api/v1/restaurants?limit=0");
         Assert.Equal(HttpStatusCode.UnprocessableEntity, invalidPage.StatusCode);
         using var invalidCursor = await client.GetAsync("/api/v1/restaurants?cursor=not-a-cursor");
@@ -397,6 +402,49 @@ public sealed class RestaurantMenuEndToEndTests
         Assert.Equal(HttpStatusCode.OK, branches.StatusCode);
         using var branch = await client.GetAsync($"/api/v1/branches/{branchId}");
         Assert.Equal(HttpStatusCode.OK, branch.StatusCode);
+    }
+
+    [Fact]
+    public async Task Public_discovery_cursor_pages_do_not_skip_or_repeat_branches_with_equal_timestamps()
+    {
+        await using var postgres = await StartDatabaseAsync();
+        var signingKey = TestJwtConfiguration.CreateSigningKey();
+        using var factory = CreateFactory(postgres, signingKey);
+        await using var scope = factory.Services.CreateAsyncScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        await dbContext.Database.MigrateAsync();
+        var ownerId = NanoId.New().Value;
+        var restaurantId = NanoId.New().Value;
+        var firstBranchId = NanoId.New().Value;
+        await SeedOwnerBranchAsync(dbContext, ownerId, NanoId.New().Value, restaurantId, firstBranchId);
+        var secondBranchId = NanoId.New().Value;
+        var createdAt = await dbContext.Database.SqlQuery<DateTimeOffset>($"""
+            SELECT created_at AS "Value" FROM restaurant_branches WHERE id = {firstBranchId}
+            """).SingleAsync();
+        await dbContext.Database.ExecuteSqlInterpolatedAsync($"""
+            INSERT INTO restaurant_branches (
+                id, restaurant_id, name, phone, address_line, ward, district, city, latitude, longitude,
+                status, created_at, updated_at)
+            VALUES ({secondBranchId}, {restaurantId}, 'Second Branch', '+84900000000', '42 Example Road',
+                    'Central', 'District 1', 'HCMC', 10.0, 106.0, 'open', {createdAt}, {createdAt})
+            """);
+
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions { BaseAddress = new Uri("https://localhost") });
+        using var firstPage = await client.GetAsync("/api/v1/restaurants?city=HCMC&limit=1");
+        Assert.Equal(HttpStatusCode.OK, firstPage.StatusCode);
+        using var firstBody = await JsonDocument.ParseAsync(await firstPage.Content.ReadAsStreamAsync());
+        var firstData = firstBody.RootElement.GetProperty("data");
+        Assert.Single(firstData.EnumerateArray());
+        Assert.True(firstBody.RootElement.GetProperty("meta").GetProperty("hasMore").GetBoolean());
+        var cursor = firstBody.RootElement.GetProperty("meta").GetProperty("nextCursor").GetString();
+
+        using var secondPage = await client.GetAsync($"/api/v1/restaurants?city=HCMC&limit=1&cursor={Uri.EscapeDataString(cursor!)}");
+        Assert.Equal(HttpStatusCode.OK, secondPage.StatusCode);
+        using var secondBody = await JsonDocument.ParseAsync(await secondPage.Content.ReadAsStreamAsync());
+        var secondData = secondBody.RootElement.GetProperty("data");
+        Assert.Single(secondData.EnumerateArray());
+        Assert.NotEqual(firstData[0].GetProperty("branchId").GetString(), secondData[0].GetProperty("branchId").GetString());
+        Assert.False(secondBody.RootElement.GetProperty("meta").GetProperty("hasMore").GetBoolean());
     }
 
     private static async Task<PostgreSqlContainer> StartDatabaseAsync()

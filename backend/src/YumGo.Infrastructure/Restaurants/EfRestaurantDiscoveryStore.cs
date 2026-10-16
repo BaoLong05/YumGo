@@ -27,8 +27,8 @@ public sealed class EfRestaurantDiscoveryStore(ApplicationDbContext dbContext) :
             WHERE r.status = 'active' AND r.deleted_at IS NULL
               AND b.status = 'open' AND b.deleted_at IS NULL
               AND ({search} = '' OR r.name ILIKE '%' || {search} || '%' OR b.name ILIKE '%' || {search} || '%')
-              AND ({city} = '' OR b.city ILIKE {city})
-              AND ({district} = '' OR b.district ILIKE {district})
+              AND ({city} = '' OR lower(b.city) = lower({city}))
+              AND ({district} = '' OR lower(b.district) = lower({district}))
               AND (NOT {openNow} OR b.opens_at IS NULL
                    OR (b.opens_at <= (now() AT TIME ZONE 'UTC')::time AND b.closes_at > (now() AT TIME ZONE 'UTC')::time))
               AND ({categoryId} = '' OR EXISTS (
