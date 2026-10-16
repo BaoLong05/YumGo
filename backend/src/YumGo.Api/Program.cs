@@ -41,9 +41,11 @@ builder.Services.AddScoped<RefreshSessionHandler>();
 builder.Services.AddScoped<LogoutSessionHandler>();
 builder.Services.AddScoped<CustomerAddressHandler>();
 builder.Services.AddScoped<RestaurantBranchHandler>();
+builder.Services.AddScoped<RestaurantWorkflowHandler>();
 builder.Services.AddScoped<IAuthenticationStore, EfAuthenticationStore>();
 builder.Services.AddScoped<ICustomerAddressStore, EfCustomerAddressStore>();
 builder.Services.AddScoped<IRestaurantBranchStore, EfRestaurantBranchStore>();
+builder.Services.AddScoped<IRestaurantWorkflowStore, EfRestaurantWorkflowStore>();
 builder.Services.AddScoped<IGoogleGeocodingQuota, PostgresGoogleGeocodingQuotaStore>();
 builder.Services.AddHttpClient<IAddressReverseGeocoder, GoogleAddressReverseGeocoder>(client =>
     client.Timeout = TimeSpan.FromSeconds(10));
@@ -314,6 +316,7 @@ app.MapGet("/api/v1/auth/me", (HttpContext context) =>
 
 app.MapCustomerAddressEndpoints();
 app.MapRestaurantManagementEndpoints();
+app.MapRestaurantWorkflowEndpoints();
 
 app.Run();
 

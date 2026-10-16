@@ -32,11 +32,27 @@ public sealed class FullSchemaPostgreSqlMigrationTests
         Assert.Contains("20261007093504_AlignUserUniquenessWithDatabaseSpec", appliedMigrations);
         Assert.Contains("20261015120000_AlignPromotionAndPaymentTransactionConstraints", appliedMigrations);
         Assert.Contains("20261015140000_EnforceMenuItemCategoryBranchScope", appliedMigrations);
+        Assert.Contains("20261016133500_RestaurantWorkflowLifecycle", appliedMigrations);
 
         var customerRoleCount = await context.Database
             .SqlQueryRaw<int>("SELECT count(*)::int AS \"Value\" FROM roles WHERE code = 'customer'")
             .SingleAsync();
         Assert.Equal(1, customerRoleCount);
+
+        var adminRoleCount = await context.Database
+            .SqlQueryRaw<int>("SELECT count(*)::int AS \"Value\" FROM roles WHERE code = 'admin'")
+            .SingleAsync();
+        Assert.Equal(1, adminRoleCount);
+
+        var restaurantStatusConstraint = await context.Database
+            .SqlQueryRaw<string>("""
+                SELECT pg_get_constraintdef(oid) AS "Value"
+                FROM pg_constraint
+                WHERE conrelid = 'restaurants'::regclass
+                  AND conname = 'restaurants_status_check'
+                """)
+            .SingleAsync();
+        Assert.Contains("rejected", restaurantStatusConstraint, StringComparison.Ordinal);
 
         var applicationTableCount = await context.Database
             .SqlQueryRaw<int>("""

@@ -215,8 +215,27 @@ Every route applies restaurant/branch resource scope.
 | POST | `/restaurant/restaurants` | Create a restaurant in `pending` status |
 | GET | `/restaurant/restaurants/{restaurantId}/branches` | List branches when the caller owns the restaurant |
 | POST | `/restaurant/restaurants/{restaurantId}/branches` | Create a required-coordinate branch in `draft` status |
+| PATCH | `/restaurant/restaurants/{restaurantId}/branches/{branchId}/status` | Publish (`open`) or hide (`closed`) an owned branch |
+| PUT | `/restaurant/restaurants/{restaurantId}/staff/{employeeUserId}/roles` | Replace an employee's selected restaurant roles |
+| POST | `/admin/restaurants/{restaurantId}/review` | Approve (`active`) or reject (`rejected`) a pending restaurant; admin role required |
 
-The owner ID is derived from the access token; request bodies cannot select another owner. Restaurant IDs are validated NanoID(21) values and ownership is checked in every branch query/mutation. A foreign or missing restaurant returns `404`. Invalid field, coordinate, phone, or paired-schedule values return `422`; this slice supports same-day schedules only (`opensAt < closesAt`). An existing branch name within the restaurant returns `409`. New branches are not automatically published. Restaurant and branch creation audit rows are inserted atomically with their resource rows; no notification is emitted. Staff-scoped operations are not available until staff assignment/authorization is implemented.
+The owner ID is derived from the access token; request bodies cannot select another owner. Restaurant IDs are validated NanoID(21) values and ownership is checked in every branch query/mutation. A foreign or missing restaurant returns `404`. Invalid field, coordinate, phone, or paired-schedule values return `422`; this slice supports same-day schedules only (`opensAt < closesAt`). An existing branch name within the restaurant returns `409`. New branches are not automatically published. Owners may only change branch visibility for active restaurants; suspended branches cannot be reopened by their owner. Staff role replacement accepts a `roles` array containing any combination of `manager` and `staff`; an empty array removes all assignments. The target employee must be an active, email-verified user. Unknown roles, duplicates, missing roles arrays, and invalid requests return `422`. The owner ID is never accepted from the payload. Restaurant review requires the `admin` role and only pending restaurants can be reviewed; rejection requires a nonblank reason (maximum 500 characters). Restaurant review, branch visibility, and staff role changes write audit rows atomically with state changes; reapplying an identical branch status or role set is a no-op without another audit row. No notification is emitted.
+
+Examples:
+
+```json
+{ "decision": "reject", "reason": "Required documents are missing." }
+```
+
+```json
+{ "status": "open" }
+```
+
+```json
+{ "roles": ["manager", "staff"] }
+```
+
+The `roles` collection is intended to map directly to the restaurant permission screen's checkbox selections; the client must submit the full selected set, and the backend validates every role and restaurant scope.
 
 ## 6.8 Driver operations
 

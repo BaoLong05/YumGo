@@ -29,6 +29,14 @@ public sealed class Restaurant
         return Restore(id, ownerUserId, name, description, "pending", now, now);
     }
 
+    public Restaurant Review(bool approve, DateTimeOffset now)
+    {
+        if (Status != "pending")
+            throw new InvalidOperationException("Only pending restaurants can be reviewed.");
+
+        return new Restaurant(Id, OwnerUserId, Name, Description, approve ? "active" : "rejected", CreatedAt, now);
+    }
+
     public static Restaurant Restore(NanoId id, NanoId ownerUserId, string name, string? description,
         string status, DateTimeOffset createdAt, DateTimeOffset updatedAt)
     {
@@ -38,7 +46,7 @@ public sealed class Restaurant
         var normalizedDescription = string.IsNullOrWhiteSpace(description) ? null : description.Trim();
         if (normalizedDescription?.Length > 2000)
             throw new ArgumentException("Description cannot exceed 2000 characters.", nameof(description));
-        if (status is not ("pending" or "active" or "suspended" or "closed"))
+        if (status is not ("pending" or "active" or "rejected" or "suspended" or "closed"))
             throw new ArgumentException("Unknown restaurant status.", nameof(status));
 
         return new Restaurant(id, ownerUserId, normalizedName, normalizedDescription, status, createdAt, updatedAt);
